@@ -341,7 +341,7 @@
                 <td class="inv-company-td">
                     <table cellpadding="0" cellspacing="0" class="inv-company-inner">
                         <tr>
-                            <td rowspan="4" class="inv-logo-td">
+                            <td rowspan="4" class="inv-logo-td" style="display:none;">
                                 <?php
                                 $logoPath = public_path('images/logo.png');
                                 if (file_exists($logoPath)) {
@@ -453,9 +453,6 @@
 
         {{-- -- ITEMS TABLE -- --}}
         <div class="inv-watermark-container">
-            @if($src)
-            <img src="{{ $src }}" class="inv-watermark" alt="">
-            @endif
             <table class="inv-items-tbl" cellpadding="0" cellspacing="0">
                 <thead>
                     <tr>

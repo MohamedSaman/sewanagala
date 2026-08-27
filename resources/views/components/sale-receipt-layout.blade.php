@@ -328,12 +328,9 @@ if (file_exists($logoPath)) {
 
 <div class="srp-canvas">
     <div class="srp-container">
-        <img class="srp-watermark" src="{{ $logoSrc }}" alt="" />
-
         <!-- 1. Header Section -->
         <div class="srp-header">
             <div class="srp-company-info">
-                <img src="{{ $logoSrc }}" alt="{{ config('shop.name', 'THIHARIYA TILE CENTER') }}" class="srp-company-logo">
                 <div class="srp-company-text">
                     <h2>{{ config('shop.name', 'THIHARIYA TILE CENTER') }}</h2>
                     <div class="srp-company-tagline">{{ config('shop.tagline', 'IMPORTERS & DEALERS IN WALL TILES, FLOOR TILES & SANITARYWARE Etc...') }}</div>

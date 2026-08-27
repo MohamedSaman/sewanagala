@@ -4046,6 +4046,13 @@
             background: white !important;
         }
 
+        #saleReceiptPrintContent .pos-modal-body,
+        #saleReceiptPrintContent .srp-canvas {
+            overflow: visible !important;
+            max-height: none !important;
+            height: auto !important;
+        }
+
         .modal-header,
         .modal-footer,
         .btn,
