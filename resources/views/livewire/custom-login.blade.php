@@ -1,8 +1,4 @@
     <div class="login-container">
-        @php
-        $shopPhoneForWa = preg_replace('/\D+/', '', config('shop.whatsapp'));
-        @endphp
-
         <!-- Full-screen background -->
         <div class="background-image"></div>
 
@@ -15,16 +11,6 @@
 
                 <div class="brand-divider"></div>
 
-                <div class="brand-connect">
-                    <a href="mailto:{{ config('shop.email') }}" class="connect-icon email" title="Email us">
-                        <i class="bi bi-envelope-fill"></i>
-                    </a>
-                    <a href="https://api.whatsapp.com/send/?phone={{ $shopPhoneForWa }}&text=Hi%2C+I%27m+interested+in+your+tile+products.&type=phone_number&app_absent=0"
-                        target="_blank" rel="noopener noreferrer"
-                        class="connect-icon whatsapp" title="WhatsApp us">
-                        <i class="bi bi-whatsapp"></i>
-                    </a>
-                </div>
             </div>
 
             <!-- ===== RIGHT: Form panel ===== -->
