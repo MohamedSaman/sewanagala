@@ -27,9 +27,9 @@
             --brand-navy: #16285A;
             --brand-navy-dark: #0A1128;
             --brand-navy-light: #234294;
-            --brand-orange: #E65F1E;
-            --brand-orange-dark: #C2410C;
-            --brand-orange-soft: #FFF7ED;
+            --brand-orange: #CC0E11;
+            --brand-orange-dark: #A30B0E;
+            --brand-orange-soft: #FDEBED;
         }
 
         /* Full-screen page */
@@ -47,7 +47,7 @@
         .background-image {
             position: fixed;
             inset: 0;
-            background: radial-gradient(circle at 10% 20%, rgba(22, 40, 90, 0.95) 0%, rgba(10, 17, 40, 0.98) 100%);
+            background: radial-gradient(circle at 10% 20%, rgba(22, 40, 90, 0.98) 0%, rgba(10, 17, 40, 1) 100%);
             z-index: 0;
         }
 
@@ -80,7 +80,7 @@
         /* Left branding panel */
         .brand-panel {
             flex: 1 1 44%;
-            background: linear-gradient(155deg, #0A1128 0%, #16285A 60%, #1c3272 100%);
+            background: linear-gradient(155deg, #0A1128 0%, #16285A 60%, #243d86 100%);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -97,7 +97,7 @@
             left: 0;
             right: 0;
             height: 4px;
-            background: linear-gradient(90deg, #16285A, #E65F1E, #F97316);
+            background: linear-gradient(90deg, #16285A, #CC0E11, #A30B0E);
         }
 
         .brand-panel img.brand-logo {
@@ -106,7 +106,7 @@
             object-fit: contain;
             margin-bottom: 20px;
             filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.4));
-            background: rgba(255, 255, 255, 0.95);
+            background: #16285A;
             padding: 8px 16px;
             border-radius: 12px;
         }
@@ -131,7 +131,7 @@
         .brand-divider {
             width: 54px;
             height: 3px;
-            background: linear-gradient(90deg, #16285A, #E65F1E);
+            background: linear-gradient(90deg, #16285A, #CC0E11);
             border-radius: 2px;
             margin: 0 auto 24px;
         }
@@ -173,7 +173,7 @@
         }
 
         .connect-icon.email {
-            background: #E65F1E;
+            background: #CC0E11;
         }
 
         .connect-icon.whatsapp {
