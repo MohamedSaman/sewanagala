@@ -290,11 +290,10 @@ class PosSales extends Component
             $this->dispatch('showToast', ['type' => 'error', 'message' => 'Sale not found.']);
             return;
         }
-        // Store sale ID in session for print route
-        session(['print_sale_id' => $sale->id]);
-        // Open print page in new window
-        $printUrl = route('admin.print.sale', $sale->id);
-        $this->js("window.open('$printUrl', '_blank', 'width=800,height=600');");
+        // Print the same saved-sale view currently open in the modal. This keeps
+        // all customer, item, return and payment details exactly in sync.
+        $this->selectedSale = $sale;
+        $this->js("setTimeout(() => window.print(), 150);");
     }
 
     public function downloadInvoice($saleId)

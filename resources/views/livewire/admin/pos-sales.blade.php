@@ -1049,14 +1049,15 @@ use App\Models\Sale;
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
-            height: 297mm !important;
+            min-height: 297mm !important;
+            height: auto !important;
             margin: 0 !important;
             padding: 10mm 10mm 20mm 15mm !important;
             background: #fff !important;
             font-size: 10pt !important;
             color: #000 !important;
             box-sizing: border-box !important;
-            overflow: hidden !important;
+            overflow: visible !important;
             page-break-after: avoid !important;
             page-break-before: avoid !important;
         }
