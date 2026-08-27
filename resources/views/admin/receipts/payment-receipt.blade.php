@@ -11,7 +11,7 @@
 
         .header {
             text-align: center;
-            border-bottom: 2px solid #333;
+            border-bottom: 2px solid #16285A;
             padding-bottom: 10px;
             margin-bottom: 20px;
         }
@@ -19,12 +19,13 @@
         .company-name {
             font-size: 24px;
             font-weight: bold;
-            color: #333;
+            color: #CC0E11;
         }
 
         .receipt-title {
             font-size: 20px;
             margin: 10px 0;
+            color: #16285A;
         }
 
         .details-table {
@@ -46,7 +47,7 @@
         }
 
         .details-table th {
-            background-color: #333;
+            background-color: #16285A;
             color: white;
             text-align: left;
         }
@@ -89,15 +90,15 @@
         }
 
         .allocations-table th {
-            background-color: #333;
+            background-color: #16285A;
             color: white;
         }
 
         .info-badge {
             display: inline-block;
             padding: 2px 6px;
-            background-color: #e3f2fd;
-            color: #1976d2;
+            background-color: #fdebed;
+            color: #CC0E11;
             font-size: 10px;
             border-radius: 3px;
         }
@@ -107,6 +108,8 @@
 <body>
     <div class="header">
         <div class="company-name">{{ config('shop.name') }}</div>
+        <div>{{ config('shop.address') }}</div>
+        <div>Tel: {{ config('shop.phone') }}</div>
         <div class="receipt-title">PAYMENT RECEIPT</div>
     </div>
 
@@ -122,6 +125,10 @@
             <td>{{ $customer->name }}</td>
             <td class="label">Phone</td>
             <td>{{ $customer->phone }}</td>
+        </tr>
+        <tr>
+            <td class="label">Address</td>
+            <td colspan="3">{{ $customer->address ?: '-' }}</td>
         </tr>
     </table>
 

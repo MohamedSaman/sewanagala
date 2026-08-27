@@ -32,8 +32,11 @@ if ($billName === '' || is_numeric($billName)) {
 }
 
 $displayDiscount = max(0, (float) ($sale->discount_amount ?? 0));
-$displayPaid = min($sale->payments->sum('amount'), $sale->total_amount);
-$displayBalance = max(0, $sale->total_amount - $displayPaid);
+$returnItems = $sale->returns ?? collect();
+$returnTotal = (float) $returnItems->sum('total_amount');
+$netTotal = max(0, (float) $sale->total_amount - $returnTotal);
+$displayPaid = min($sale->payments->sum('amount'), $netTotal);
+$displayBalance = max(0, $netTotal - $displayPaid);
 $itemCount = count($sale->items);
 $invFiller = max(0, 7 - $itemCount);
 
@@ -54,7 +57,7 @@ if (file_exists($logoPath)) {
 
     #saleReceiptPrintContent .srp-container {
         --brand-navy: #16285A;
-        --brand-orange: #E65F1E;
+        --brand-orange: #CC0E11;
         --brand-border: #16285A;
         width: 100%;
         max-width: 900px;
@@ -378,6 +381,7 @@ if (file_exists($logoPath)) {
                         <th style="width: 90px; text-align: center;">SIZE</th>
                         <th style="width: 60px; text-align: center;">QTY</th>
                         <th style="width: 110px; text-align: right;">RATE (RS.)</th>
+                        <th style="width: 90px; text-align: right;">DISCOUNT</th>
                         <th style="width: 120px; text-align: right;">AMOUNT (RS.)</th>
                     </tr>
                 </thead>
@@ -401,6 +405,7 @@ if (file_exists($logoPath)) {
                         <td style="text-align: center;">{{ $itemSize ?: '-' }}</td>
                         <td style="text-align: center; font-weight: 600;">{{ $item->quantity }}</td>
                         <td style="text-align: right;">{{ number_format($item->unit_price, 2) }}</td>
+                        <td style="text-align: right;">{{ $item->discount_per_unit > 0 ? number_format($item->discount_per_unit, 2) : '-' }}</td>
                         <td style="text-align: right; font-weight: 600;">{{ number_format($lineTotal, 2) }}</td>
                     </tr>
                     @endforeach
@@ -413,11 +418,44 @@ if (file_exists($logoPath)) {
                         <td>&nbsp;</td>
                         <td>&nbsp;</td>
                         <td>&nbsp;</td>
+                        <td>&nbsp;</td>
                     </tr>
                     @endfor
                 </tbody>
             </table>
         </div>
+
+        @if($returnItems->count() > 0)
+        <div class="srp-table-wrap srp-returns-wrap">
+            <div style="padding: 8px 10px; color: #CC0E11; font-size: 12px; font-weight: 800;">RETURNED ITEMS</div>
+            <table class="srp-items-table">
+                <thead>
+                    <tr>
+                        <th style="width: 45px; text-align: center;">NO</th>
+                        <th style="text-align: left;">PRODUCT</th>
+                        <th style="width: 70px; text-align: center;">QTY</th>
+                        <th style="width: 120px; text-align: right;">PRICE (RS.)</th>
+                        <th style="width: 130px; text-align: right;">TOTAL (RS.)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach($returnItems as $index => $return)
+                    <tr>
+                        <td style="text-align: center;">{{ $index + 1 }}</td>
+                        <td style="font-weight: 600;">{{ optional($return->product)->name ?? 'Returned item' }}</td>
+                        <td style="text-align: center;">{{ $return->return_quantity }}</td>
+                        <td style="text-align: right;">{{ number_format($return->selling_price, 2) }}</td>
+                        <td style="text-align: right; font-weight: 600;">{{ number_format($return->total_amount, 2) }}</td>
+                    </tr>
+                    @endforeach
+                    <tr>
+                        <td colspan="4" style="text-align: right; font-weight: 800;">Returned Items Total</td>
+                        <td style="text-align: right; font-weight: 800; color: #CC0E11;">Rs. {{ number_format($returnTotal, 2) }}</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        @endif
 
         <!-- 4. Bottom Section: Terms on Left, Totals on Right -->
         <div class="srp-footer-grid">
@@ -446,7 +484,7 @@ if (file_exists($logoPath)) {
                         <td class="val">Rs. {{ number_format($displayPaid, 2) }}</td>
                     </tr>
                     <tr class="highlight">
-                        <td class="lbl">Balance</td>
+                        <td class="lbl">Balance Due</td>
                         <td class="val">Rs. {{ number_format($displayBalance, 2) }}</td>
                     </tr>
                 </table>

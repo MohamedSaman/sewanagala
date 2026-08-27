@@ -27,13 +27,13 @@
         /* -- HEADER -- */
         .inv-wrap {
             width: 100%;
-            border: 1px solid #1b6cae;
+            border: 1px solid #16285A;
             position: relative;
         }
 
         .inv-hdr-tbl {
             width: 100%;
-            border-bottom: 1px solid #1b6cae;
+            border-bottom: 1px solid #16285A;
             border-collapse: collapse;
         }
 
@@ -46,7 +46,7 @@
         .inv-infobox-td {
             width: 40%;
             vertical-align: top;
-            border-left: 1px solid #1b6cae;
+            border-left: 1px solid #16285A;
             padding: 0;
         }
 
@@ -57,7 +57,7 @@
 
         .inv-ib-tbl td {
             padding: 2px 5px;
-            border-bottom: 1px solid #1b6cae;
+            border-bottom: 1px solid #16285A;
             font-size: 9px;
         }
 
@@ -66,16 +66,16 @@
         }
 
         .inv-ib-lbl {
-            background-color: #0d5f9a;
+            background-color: #16285A;
             color: #fff;
             font-family: 'Helvetica', 'Roboto', sans-serif;
             font-weight: bold;
             width: 100px;
-            border-right: 1px solid #1b6cae;
+            border-right: 1px solid #16285A;
         }
 
         .inv-title-badge {
-            background-color: #0d5f9a;
+            background-color: #16285A;
             color: #fff;
             text-align: center;
             font-family: 'Helvetica', 'Roboto', sans-serif;
@@ -111,7 +111,7 @@
         .inv-shop-name {
             font-family: 'Times New Roman', serif;
             font-size: 22px;
-            color: #1f4f7a;
+            color: #CC0E11;
             padding-bottom: 2px;
             letter-spacing: 0.5px;
         }
@@ -121,7 +121,7 @@
             font-style: italic;
             font-family: 'Helvetica', 'Roboto', sans-serif;
             font-weight: bold;
-            color: #0d5f9a;
+            color: #CC0E11;
             padding-bottom: 2px;
         }
 
@@ -135,7 +135,7 @@
         /* -- BILL TO -- */
         .inv-bto-tbl {
             width: 100%;
-            border-bottom: 1px solid #1b6cae;
+            border-bottom: 1px solid #16285A;
             border-collapse: collapse;
         }
 
@@ -163,26 +163,26 @@
         .inv-items-tbl {
             width: 100%;
             border-collapse: collapse;
-            border-bottom: 1px solid #1b6cae;
+            border-bottom: 1px solid #16285A;
         }
 
         .inv-items-tbl th {
-            background-color: #0d5f9a;
+            background-color: #16285A;
             color: #fff;
             text-align: left;
             padding: 3px 5px;
             font-size: 9px;
             font-family: 'Helvetica', 'Roboto', sans-serif;
             font-weight: bold;
-            border-right: 1px solid #1b6cae;
-            border-bottom: 1px solid #1b6cae;
+            border-right: 1px solid #16285A;
+            border-bottom: 1px solid #16285A;
         }
 
         .inv-items-tbl td {
             padding: 2px 5px;
             font-size: 9px;
             font-family: 'Arial', sans-serif;
-            border-right: 1px solid #1b6cae;
+            border-right: 1px solid #16285A;
             border-bottom: none;
         }
 
@@ -225,7 +225,7 @@
         .inv-bot-right {
             vertical-align: top;
             width: 40%;
-            border-left: 1px solid #1b6cae;
+            border-left: 1px solid #16285A;
             padding: 0;
         }
 
@@ -258,7 +258,7 @@
             font-size: 9px;
             font-weight: bold;
             font-family: 'Arial', sans-serif;
-            border-bottom: 1px solid #1b6cae;
+            border-bottom: 1px solid #16285A;
         }
 
         .inv-tot-tbl tr:last-child td {
@@ -266,7 +266,7 @@
         }
 
         .inv-tot-lbl {
-            background-color: #0d5f9a;
+            background-color: #16285A;
             color: #fff;
             width: 40%;
             font-family: 'Helvetica', sans-serif;
@@ -300,7 +300,7 @@
             font-style: italic;
             font-size: 8px;
             font-family: 'Arial', sans-serif;
-            color: #1b6cae;
+            color: #CC0E11;
             padding: 6px;
         }
 
@@ -495,6 +495,26 @@
             </table>
         </div>
 
+        @php
+            $returnItems = $sale->returns ?? collect();
+            $returnTotal = (float) $returnItems->sum('total_amount');
+            $netTotal = max(0, (float) $sale->total_amount - $returnTotal);
+        @endphp
+        @if($returnItems->count() > 0)
+        <table class="inv-items-tbl" cellpadding="0" cellspacing="0" style="margin-top: 5px;">
+            <thead><tr>
+                <th style="width: 8%;">#</th><th style="width: 52%;">Returned Items</th>
+                <th class="inv-tc" style="width: 12%;">Qty</th><th class="inv-tr" style="width: 14%;">Price</th><th class="inv-tr" style="width: 14%;">Total</th>
+            </tr></thead>
+            <tbody>
+                @foreach($returnItems as $index => $return)
+                <tr><td>{{ $index + 1 }}</td><td>{{ optional($return->product)->name ?? 'Returned item' }}</td><td class="inv-tc">{{ $return->return_quantity }}</td><td class="inv-tr">Rs.{{ number_format($return->selling_price, 2) }}</td><td class="inv-tr">Rs.{{ number_format($return->total_amount, 2) }}</td></tr>
+                @endforeach
+                <tr><td colspan="4" class="inv-tr"><strong>Returned Items Total</strong></td><td class="inv-tr"><strong>Rs.{{ number_format($returnTotal, 2) }}</strong></td></tr>
+            </tbody>
+        </table>
+        @endif
+
         {{-- -- BOTTOM: OUTSTANDINGS + TOTALS -- --}}
         <table class="inv-bot-tbl" cellpadding="0" cellspacing="0">
             <tr>
@@ -531,18 +551,18 @@
                         </tr>
                         <tr>
                             <td class="inv-tot-lbl">Net Total</td>
-                            <td class="inv-tot-val">Rs.{{ number_format($sale->total_amount, 2) }}</td>
+                            <td class="inv-tot-val">Rs.{{ number_format($netTotal, 2) }}</td>
                         </tr>
                         @php
-                        $displayPaid = min($sale->payments->sum('amount'), $sale->total_amount);
-                        $displayBalance = max(0, $sale->total_amount - $displayPaid);
+                        $displayPaid = min($sale->payments->sum('amount'), $netTotal);
+                        $displayBalance = max(0, $netTotal - $displayPaid);
                         @endphp
                         <tr>
                             <td class="inv-tot-lbl">Paid</td>
                             <td class="inv-tot-val">Rs.{{ number_format($displayPaid, 2) }}</td>
                         </tr>
                         <tr class="inv-bal-row">
-                            <td class="inv-tot-lbl">Balance</td>
+                            <td class="inv-tot-lbl">Balance Due</td>
                             <td class="inv-tot-val">Rs.{{ number_format($displayBalance, 2) }}</td>
                         </tr>
                         <tr>
