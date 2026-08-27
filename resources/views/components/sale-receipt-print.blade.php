@@ -88,13 +88,14 @@
 
         /* The Paper Canvas - 9.5in x 5.5in */
         .page {
-            width: 9.5in;
-            height: 5.5in;
+            width: 80mm;
+            min-height: 40mm;
+            height: auto;
             background: #fff;
             position: relative;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
             border: 1px dashed #bbb;
-            overflow: hidden;
+            overflow: visible;
             transition: transform 0.1s;
         }
 
@@ -103,19 +104,37 @@
             body { background: transparent !important; }
             .sidebar { display: none !important; }
             .main-content { margin: 0 !important; padding: 0 !important; background: transparent !important; display: block !important;}
-            .page { 
+            .page {
+                width: 80mm !important;
+                min-height: 0 !important;
+                height: auto !important;
                 margin: 0 !important; 
                 box-shadow: none !important; 
                 border: none !important;
-                page-break-after: always;
+                page-break-after: auto;
             }
             .selectable-item { border: none !important; cursor: auto !important; }
             .selected-element { outline: none !important; background: transparent !important; }
             @page {
-                size: 9.5in 5.5in;
+                size: 80mm auto;
                 margin: 0;
             }
         }
+
+        .thermal-header { text-align:center; border-bottom:1px dashed #000; padding-bottom:3mm; margin-bottom:3mm; }
+        .thermal-header h1 { font-size:15pt; margin-bottom:1mm; }
+        .thermal-header p { font-size:8pt; line-height:1.35; }
+        .thermal-meta { display:grid; grid-template-columns:1fr 1fr; gap:1mm; font-size:8pt; margin-bottom:3mm; }
+        .thermal-meta div:nth-child(even) { text-align:right; }
+        .thermal-table { width:100%; border-collapse:collapse; font-size:7.5pt; }
+        .thermal-table th { border-top:1px solid #000; border-bottom:1px solid #000; padding:1.5mm 0; text-align:left; }
+        .thermal-table td { padding:1.3mm 0; vertical-align:top; }
+        .thermal-table .num { text-align:right; white-space:nowrap; }
+        .thermal-summary { border-top:1px dashed #000; margin-top:2mm; padding-top:2mm; font-size:8.5pt; }
+        .thermal-summary div { display:flex; justify-content:space-between; margin-bottom:1mm; }
+        .thermal-summary .grand { border-top:1px solid #000; padding-top:2mm; font-size:10pt; font-weight:bold; }
+        .thermal-section-title { border-top:1px dashed #000; margin-top:3mm; padding-top:2mm; font-size:9pt; font-weight:bold; }
+        .thermal-footer { border-top:1px dashed #000; margin-top:4mm; padding-top:3mm; text-align:center; font-size:7.5pt; line-height:1.4; }
 
         /* Absolute Positioning System */
         .data-field { 
@@ -217,8 +236,10 @@
             $paymentLabel = ($sale->due_amount ?? 0) > 0 ? 'Due' : 'Cash';
         }
 
-        $displayPaid = min($sale->payments->sum('amount'), $sale->total_amount);
-        $displayBalance = max(0, $sale->total_amount - $displayPaid);
+        $returnTotal = (float) (($sale->returns ?? collect())->sum('total_amount'));
+        $netTotal = max(0, (float) $sale->total_amount - $returnTotal);
+        $displayPaid = min($sale->payments->sum('amount'), $netTotal);
+        $displayBalance = max(0, $netTotal - $displayPaid);
 
         // TABLE CALIBRATION
         $rowStartY = 47; 
@@ -314,36 +335,25 @@
     <!-- MAIN PRINT CANVAS -->
     <div class="main-content">
         <div class="page" id="print-page">
-            <!-- HEADER -->
-            <div class="data-field date selectable-item">{{ $sale->created_at->format('d/m/Y') }}</div>
-            <div class="data-field invoice-no selectable-item">{{ $formattedInvoice }}</div>
-            <div class="data-field sales-rep selectable-item">{{ substr($sale->user->name ?? '-', 0, 15) }}</div>
-            <div class="data-field payment-method selectable-item">{{ $paymentLabel }}</div>
-            
-            <div class="data-field customer-name selectable-item">{{ $billName }}</div>
-            <div class="data-field customer-address selectable-item">{{ substr($billAddress, 0, 100) }}</div>
-            <div class="data-field customer-phone selectable-item">{{ $billPhone }}</div>
-
-            <!-- PRODUCT ROWS -->
-            @foreach($sale->items as $index => $item)
-                @php $currentY = $rowStartY + ($index * $rowHeight); @endphp
-                <div class="item-row" style="top: {{ $currentY }}mm;">
-                    <span class="col-code selectable-item">{{ $item->product_code }}</span>
-                    <span class="col-desc selectable-item">{{ substr($item->product_name, 0, 30) }}</span>
-                    <span class="col-qty selectable-item">{{ number_format($item->quantity, 0) }}</span>
-                    <span class="col-price selectable-item">{{ number_format($item->unit_price) }}</span>
-                    <span class="col-discount selectable-item">@if($item->discount_per_unit > 0){{ number_format($item->discount_per_unit) }}@endif</span>
-                    <span class="col-total selectable-item">{{ number_format($item->total) }}</span>
-                </div>
-            @endforeach
-
-            <!-- TOTALS AREA -->
-            <div class="data-field subtotal selectable-item">{{ number_format($sale->subtotal) }}</div>
-            <div class="data-field discount selectable-item">{{ number_format($sale->discount_amount) }}</div>
-            <div class="data-field grand-total selectable-item">{{ number_format($sale->total_amount) }}</div>
-            <div class="data-field paid-amount selectable-item">{{ number_format($displayPaid) }}</div>
-            <div class="data-field balance-amount selectable-item">{{ number_format($displayBalance) }}</div>
-            <div class="data-field due-date selectable-item">@if($displayBalance > 0 && $sale->due_date){{ \Carbon\Carbon::parse($sale->due_date)->format('d/m/Y') }}@else None @endif</div>
+            <div class="thermal-header">
+                <h1>{{ config('shop.name') }}</h1>
+                <p>{{ config('shop.tagline') }}</p>
+                <p>{{ config('shop.address') }}<br>Tel: {{ config('shop.phone') }}</p>
+            </div>
+            <div class="thermal-meta">
+                <div>Customer: <strong>{{ $billName }}</strong></div><div>Invoice: <strong>{{ $formattedInvoice }}</strong></div>
+                <div>Address: {{ $billAddress ?: '-' }}</div><div>Date: {{ $sale->created_at->format('d/m/Y H:i') }}</div>
+                <div>Tel: {{ $billPhone ?: '-' }}</div><div>Payment: {{ $paymentLabel }}</div>
+            </div>
+            <table class="thermal-table"><thead><tr><th>Item / Code</th><th class="num">Qty</th><th class="num">Rate</th><th class="num">Total</th></tr></thead><tbody>
+                @foreach($sale->items as $item)
+                <tr><td><strong>{{ $item->product_name }}</strong><br><small>{{ $item->product_code }}@if($item->discount_per_unit > 0) · Disc {{ number_format($item->discount_per_unit, 2) }}@endif</small></td><td class="num">{{ $item->quantity }}</td><td class="num">{{ number_format($item->unit_price, 2) }}</td><td class="num">{{ number_format($item->total, 2) }}</td></tr>
+                @endforeach
+            </tbody></table>
+            @php $returnItems = $sale->returns ?? collect(); $returnTotal = (float) $returnItems->sum('total_amount'); $netTotal = max(0, (float)$sale->total_amount - $returnTotal); @endphp
+            @if($returnItems->count())<div class="thermal-section-title">RETURNED ITEMS</div><table class="thermal-table"><tbody>@foreach($returnItems as $return)<tr><td>{{ optional($return->product)->name ?? 'Returned item' }}</td><td class="num">{{ $return->return_quantity }}</td><td class="num">{{ number_format($return->selling_price, 2) }}</td><td class="num">{{ number_format($return->total_amount, 2) }}</td></tr>@endforeach</tbody></table>@endif
+            <div class="thermal-summary"><div><span>Subtotal</span><span>Rs. {{ number_format($sale->subtotal + ($sale->discount_amount ?? 0), 2) }}</span></div><div><span>Discount</span><span>- Rs. {{ number_format($sale->discount_amount ?? 0, 2) }}</span></div>@if($returnTotal > 0)<div><span>Returns</span><span>- Rs. {{ number_format($returnTotal, 2) }}</span></div>@endif<div class="grand"><span>NET TOTAL</span><span>Rs. {{ number_format($netTotal, 2) }}</span></div><div><span>Paid</span><span>Rs. {{ number_format($displayPaid, 2) }}</span></div><div><span>BALANCE DUE</span><span>Rs. {{ number_format($displayBalance, 2) }}</span></div></div>
+            <div class="thermal-footer">Customer Signature: __________________<br><br>Thank you for your business!<br>{{ config('shop.name') }}</div>
         </div>
     </div>
 
