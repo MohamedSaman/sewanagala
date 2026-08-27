@@ -201,7 +201,11 @@ class Products extends Component
         }
 
         $totalProductCodes = (clone $query)->count('product_details.id');
-        $totalStockValue = (float) ((clone $query)->selectRaw('COALESCE(SUM(product_stocks.available_stock * product_prices.selling_price), 0) as stock_value')->value('stock_value') ?? 0);
+        $stockValueQuery = clone $query;
+        $totalStockValue = (float) ($stockValueQuery
+            ->select(DB::raw('COALESCE(SUM(product_stocks.available_stock * product_prices.selling_price), 0) as stock_value'))
+            ->reorder()
+            ->value('stock_value') ?? 0);
 
         if ($this->perPage === 'all') {
             $totalRows = (clone $query)->count();
