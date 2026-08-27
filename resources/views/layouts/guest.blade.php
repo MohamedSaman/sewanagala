@@ -111,6 +111,16 @@
             border-radius: 12px;
         }
 
+        .brand-panel img.brand-banner {
+            width: 100%;
+            max-width: 390px;
+            height: auto;
+            padding: 0;
+            background: transparent;
+            border-radius: 8px;
+            filter: none;
+        }
+
         .brand-panel h1 {
             color: #ffffff;
             font-size: 1.4rem;

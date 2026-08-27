@@ -11,16 +11,9 @@
 
             <!-- ===== LEFT: Branding panel ===== -->
             <div class="brand-panel">
-                <img src="{{ asset('images/logo.png') }}" alt="{{ config('shop.name') }}" class="brand-logo">
-                <h1>{{ config('shop.name') }}</h1>
-                <p class="brand-tagline">{{ config('shop.tagline') }}</p>
+                <img src="{{ asset('images/sewanagala-banner.png') }}" alt="{{ config('shop.name') }}" class="brand-logo brand-banner">
 
                 <div class="brand-divider"></div>
-
-                <div class="brand-meta">
-                    <p><i class="bi bi-telephone-fill"></i>{{ config('shop.phone') }}</p>
-                    <p><i class="bi bi-geo-alt-fill"></i>{{ config('shop.address') }}</p>
-                </div>
 
                 <div class="brand-connect">
                     <a href="mailto:{{ config('shop.email') }}" class="connect-icon email" title="Email us">
