@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --theme-primary: #16285A;
+    --theme-primary-dark: #0D1A36;
+    --theme-primary-light: #234294;
+    --theme-accent: #E65F1E;
+    --theme-accent-dark: #C2410C;
+    --theme-accent-light: #FB923C;
+    --theme-bg: #F4F6FB;
+    --theme-text: #0F172A;
+    --theme-muted: #64748B;
+
+    /* Legacy alias variables */
+    --phoenix-primary: #16285A;
+    --phoenix-primary-dark: #0D1A36;
+    --phoenix-accent: #E65F1E;
+    --phoenix-bg: #F4F6FB;
+    --phoenix-text: #0F172A;
+    --phoenix-muted: #64748B;
+}
+
+body {
+    background: var(--theme-bg);
+    color: var(--theme-text);
+}
+
+.phoenix-surface,
+.theme-surface {
+    background: #ffffff;
+    border: 1px solid #E2E8F0;
+    box-shadow: 0 10px 30px rgba(22, 40, 90, 0.07);
+}
+
+.phoenix-gradient,
+.theme-gradient {
+    background: linear-gradient(135deg, #16285A 0%, #0D1A36 100%);
+}
+
+.theme-gradient-accent {
+    background: linear-gradient(135deg, #E65F1E 0%, #F97316 100%);
+}
+
+.phoenix-accent,
+.theme-accent {
+    color: var(--theme-accent);
+}
+
+[x-cloak] {
+    display: none;
+}
