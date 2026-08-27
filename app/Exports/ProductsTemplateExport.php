@@ -16,10 +16,8 @@ class ProductsTemplateExport implements FromArray, WithHeadings, WithStyles, Wit
     public function array(): array
     {
         return [
-            ['USN0001', 'Flasher Musical 12 V'],
-            ['USN0002', 'Flasher Musical 24 V'],
-            ['USN0003', 'Flasher Electrical 12 V'],
-            ['USN0004', 'Flasher Electrical 24 V'],
+            ['001A LAK-P WHITE', 'Inventory Part', 133, 616, '', 'pannala', 'WALL TILES', 'Revenue'],
+            ['003B MAK (300X600)', 'Inventory Part', 20, 646, '', 'Sewanagala', 'WALL TILES', 'Revenue'],
         ];
     }
 
@@ -29,8 +27,7 @@ class ProductsTemplateExport implements FromArray, WithHeadings, WithStyles, Wit
     public function headings(): array
     {
         return [
-            'CODE',
-            'NAME',
+            'Item Name', 'Item Type', 'on_hand', 'Cost', 'Vendor', 'Site', 'Item Category', 'Income Account',
         ];
     }
 

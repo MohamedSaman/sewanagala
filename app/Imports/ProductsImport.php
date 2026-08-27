@@ -2,171 +2,90 @@
 
 namespace App\Imports;
 
+use App\Models\BrandList;
+use App\Models\CategoryList;
+use App\Models\ProductBatch;
 use App\Models\ProductDetail;
 use App\Models\ProductPrice;
 use App\Models\ProductStock;
-use App\Models\BrandList;
-use App\Models\CategoryList;
 use App\Models\ProductSupplier;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
+use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
+use Maatwebsite\Excel\Concerns\SkipsFailures;
+use Maatwebsite\Excel\Concerns\SkipsOnFailure;
 use Maatwebsite\Excel\Concerns\ToModel;
 use Maatwebsite\Excel\Concerns\WithHeadingRow;
 use Maatwebsite\Excel\Concerns\WithValidation;
-use Maatwebsite\Excel\Concerns\SkipsEmptyRows;
-use Maatwebsite\Excel\Concerns\SkipsOnFailure;
-use Maatwebsite\Excel\Concerns\SkipsFailures;
-use Illuminate\Support\Facades\DB;
 
+/** Imports the client's stock sheet (Item Name, on_hand, Cost, Vendor, Site, Item Category). */
 class ProductsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEmptyRows, SkipsOnFailure
 {
     use SkipsFailures;
 
-    private $defaultBrandId;
-    private $defaultCategoryId;
-    private $defaultSupplierId;
-    private $successCount = 0;
-    private $skipCount = 0;
+    private int $successCount = 0;
+    private int $skipCount = 0;
+    private int $defaultBrandId;
+    private int $defaultSupplierId;
 
     public function __construct()
     {
-        // Set default IDs
-        $this->setDefaultIds();
-    }
-
-    /**
-     * Set default IDs for brand, category, and supplier
-     */
-    private function setDefaultIds()
-    {
-        // Get or create default brand
-        $defaultBrand = BrandList::firstOrCreate(
-            ['brand_name' => 'Default Brand'],
-            ['status' => 'active']
-        );
-        $this->defaultBrandId = $defaultBrand->id;
-
-        // Get or create default category
-        $defaultCategory = CategoryList::firstOrCreate(
-            ['category_name' => 'Default Category'],
-            ['status' => 'active']
-        );
-        $this->defaultCategoryId = $defaultCategory->id;
-
-        // Get or create default supplier
-        $defaultSupplier = ProductSupplier::firstOrCreate(
+        $this->defaultBrandId = BrandList::firstOrCreate(['brand_name' => 'Default Brand'], ['status' => 'active'])->id;
+        $this->defaultSupplierId = ProductSupplier::firstOrCreate(
             ['name' => 'Default Supplier'],
-            [
-                'phone' => '0000000000',
-                'email' => 'default@supplier.com',
-                'address' => 'Default Address',
-                'status' => 'active'
-            ]
-        );
-        $this->defaultSupplierId = $defaultSupplier->id;
+            ['phone' => '0000000000', 'email' => 'default@supplier.com', 'address' => 'Default Address', 'status' => 'active']
+        )->id;
     }
 
-    /**
-     * @param array $row
-     *
-     * @return \Illuminate\Database\Eloquent\Model|null
-     */
     public function model(array $row)
     {
-        // Check if product with same code already exists
-        $existingProduct = ProductDetail::where('code', $row['code'])->first();
-        
-        if ($existingProduct) {
-            $this->skipCount++;
-            return null; // Skip duplicate products
+        $name = trim((string) ($row['item_name'] ?? $row['name'] ?? ''));
+        if ($name === '') { $this->skipCount++; return null; }
+
+        $code = trim((string) ($row['code'] ?? ''));
+        if ($code === '') {
+            $code = strtoupper((string) Str::of($name)->before(' ')->replaceMatches('/[^A-Za-z0-9-]/', ''));
         }
+        if ($code === '') { $code = 'IMP-' . strtoupper(Str::random(8)); }
+        $baseCode = $code;
+        $suffix = 1;
+        while (ProductDetail::where('code', $code)->exists()) { $code = $baseCode . '-' . $suffix++; }
 
-        try {
-            DB::beginTransaction();
+        $categoryName = trim((string) ($row['item_category'] ?? $row['category'] ?? '')) ?: 'Default Category';
+        $category = CategoryList::firstOrCreate(['category_name' => $categoryName], ['status' => 'active']);
+        $supplierName = trim((string) ($row['vendor'] ?? $row['supplier'] ?? '')) ?: 'Default Supplier';
+        $supplier = $supplierName === 'Default Supplier' ? ProductSupplier::find($this->defaultSupplierId) :
+            ProductSupplier::firstOrCreate(['name' => $supplierName], ['status' => 'active']);
+        $stock = max(0, (int) round((float) str_replace(',', '', (string) ($row['on_hand'] ?? $row['stock'] ?? 0))));
+        $cost = max(0, (float) str_replace(',', '', (string) ($row['cost'] ?? 0)));
+        $site = trim((string) ($row['site'] ?? '')) ?: 'Store';
 
-            // Create product detail with only CODE and NAME from Excel
-            // All other fields get default/null values
+        DB::transaction(function () use ($name, $code, $category, $supplier, $stock, $cost, $site) {
             $product = ProductDetail::create([
-                'code' => $row['code'],
-                'name' => $row['name'],
-                'model' => null, // Default null
-                'image' => null, // Default null
-                'description' => null, // Default null
-                'barcode' => null, // Default null
-                'status' => 'active', // Default active status
-                'brand_id' => $this->defaultBrandId, // Default brand
-                'category_id' => $this->defaultCategoryId, // Default category
-                'supplier_id' => $this->defaultSupplierId, // Default supplier
+                'code' => $code, 'name' => $name, 'status' => 'active',
+                'brand_id' => $this->defaultBrandId, 'category_id' => $category->id,
+                'supplier_id' => $supplier->id, 'site' => $site,
             ]);
-
-            // Create default price record
-            ProductPrice::create([
-                'product_id' => $product->id,
-                'supplier_price' => 0.00, // Default 0
-                'selling_price' => 0.00, // Default 0
-                'discount_price' => 0.00, // Default 0
-            ]);
-
-            // Create default stock record
-            ProductStock::create([
-                'product_id' => $product->id,
-                'available_stock' => 0, // Default 0
-                'damage_stock' => 0, // Default 0
-            ]);
-
-            DB::commit();
-            $this->successCount++;
-
-            return $product;
-
-        } catch (\Exception $e) {
-            DB::rollBack();
-            $this->skipCount++;
-            return null;
-        }
+            ProductPrice::create(['product_id' => $product->id, 'supplier_price' => $cost, 'selling_price' => $cost, 'discount_price' => 0]);
+            ProductStock::create(['product_id' => $product->id, 'available_stock' => $stock, 'damage_stock' => 0, 'total_stock' => $stock, 'restocked_quantity' => $stock]);
+            if ($stock > 0) {
+                ProductBatch::create([
+                    'product_id' => $product->id, 'batch_number' => ProductBatch::generateBatchNumber($product->id),
+                    'supplier_price' => $cost, 'selling_price' => $cost, 'quantity' => $stock,
+                    'remaining_quantity' => $stock, 'received_date' => now(), 'status' => 'active',
+                ]);
+            }
+        });
+        $this->successCount++;
+        return null;
     }
 
-    /**
-     * Validation rules for each row
-     */
     public function rules(): array
     {
-        return [
-            'code' => 'required|string|max:255',
-            'name' => 'required|string|max:255',
-        ];
+        return ['item_name' => 'nullable|string|max:255', 'on_hand' => 'nullable|numeric', 'cost' => 'nullable|numeric'];
     }
 
-    /**
-     * Custom validation messages
-     */
-    public function customValidationMessages()
-    {
-        return [
-            'code.required' => 'Product code is required',
-            'name.required' => 'Product name is required',
-        ];
-    }
-
-    /**
-     * Get the count of successfully imported products
-     */
-    public function getSuccessCount(): int
-    {
-        return $this->successCount;
-    }
-
-    /**
-     * Get the count of skipped products
-     */
-    public function getSkipCount(): int
-    {
-        return $this->skipCount;
-    }
-
-    /**
-     * Get heading row configuration
-     */
-    public function headingRow(): int
-    {
-        return 1; // First row contains headers
-    }
+    public function getSuccessCount(): int { return $this->successCount; }
+    public function getSkipCount(): int { return $this->skipCount; }
+    public function headingRow(): int { return 1; }
 }

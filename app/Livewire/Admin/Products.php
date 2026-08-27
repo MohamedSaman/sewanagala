@@ -41,7 +41,7 @@ class Products extends Component
     public $search = '';
 
     // Create form fields
-    public $code, $name, $model, $brand, $category, $image, $description, $barcode, $status, $supplier;
+    public $code, $name, $model, $brand, $category, $image, $description, $barcode, $status, $supplier, $site = 'Store';
     public $supplier_price, $selling_price, $discount_price, $available_stock, $damage_stock;
 
     // Import file
@@ -173,6 +173,7 @@ class Products extends Component
                 'product_stocks.available_stock',
                 'product_stocks.damage_stock',
                 'product_stocks.total_stock',
+                'product_details.site',
                 'brand_lists.brand_name as brand',
                 'category_lists.category_name as category'
             )
@@ -288,6 +289,7 @@ class Products extends Component
             'model' => 'nullable|string|max:255',
             'brand' => 'required|exists:brand_lists,id',
             'category' => 'required|exists:category_lists,id',
+            'site' => 'nullable|string|max:100',
             'supplier' => 'nullable|exists:product_suppliers,id',
             'image' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'description' => 'nullable|string|max:1000',
@@ -373,6 +375,7 @@ class Products extends Component
                 'status' => 'active',
                 'brand_id' => $this->brand,
                 'category_id' => $this->category,
+                'site' => $this->site ?: 'Store',
             ]);
 
             ProductPrice::create([
@@ -513,7 +516,7 @@ class Products extends Component
             'selling_price',
             'discount_price',
             'available_stock',
-            'damage_stock'
+            'damage_stock', 'site'
         ]);
         $this->resetValidation();
     }

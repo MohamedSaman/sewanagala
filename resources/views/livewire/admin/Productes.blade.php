@@ -578,6 +578,7 @@
                                             <th>Brand</th>
                                             <th>Model</th>
                                             <th>Stock</th>
+                                            <th>Site</th>
                                             <th>Cost</th>
                                             <th>Selling Price</th>
                                             <th>Status</th>
@@ -595,6 +596,9 @@
                                             </td>
                                             <td class="ps-4" wire:click="viewProductDetails({{ $product->id }})">
                                                 <span class="fw-medium text-dark">{{ $loop->iteration }}</span>
+                                            </td>
+                                            <td wire:click="viewProductDetails({{ $product->id }})">
+                                                <span class="badge bg-light text-dark">{{ $product->site ?? 'Store' }}</span>
                                             </td>
                                             <td wire:click="viewProductDetails({{ $product->id }})">
                                                 <span class="fw-medium text-dark">{{ $product->code }}</span>
@@ -1344,12 +1348,13 @@
                                 <i class="bi bi-info-circle me-2"></i>Excel File Requirements
                             </h6>
                             <hr>
-                            <p class="mb-2">Your Excel file must contain the following columns:</p>
+                            <p class="mb-2">Your Excel file should use these columns (the client stock format is supported):</p>
                             <ul class="mb-2">
-                                <li><strong>CODE</strong> - Product code (required, unique)</li>
-                                <li><strong>NAME</strong> - Product name (required)</li>
+                                <li><strong>Item Name</strong> - Product name (required)</li>
+                                <li><strong>on_hand</strong> - Opening stock quantity</li>
+                                <li><strong>Cost</strong>, <strong>Vendor</strong>, <strong>Site</strong>, <strong>Item Category</strong></li>
                             </ul>
-                            <p class="mb-2"><strong>Note:</strong> Other product fields will be set to default values:
+                            <p class="mb-2"><strong>Note:</strong> Products, categories, vendors, prices, stock batches and site values are created automatically. If CODE/NAME headers are used, they are also accepted.
                             </p>
                             <ul class="mb-0">
                                 <li>Brand: Default Brand</li>
@@ -1376,26 +1381,25 @@
                                     <table class="table table-bordered mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th>CODE</th>
-                                                <th>NAME</th>
+                                                <th>Item Name</th>
+                                                <th>on_hand</th>
+                                                <th>Cost</th>
+                                                <th>Site</th>
+                                                <th>Item Category</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td>USN0001</td>
-                                                <td>Flasher Musical 12 V</td>
+                                                <td>001A LAK-P WHITE</td><td>133</td><td>616</td><td>pannala</td><td>WALL TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>USN0002</td>
-                                                <td>Flasher Musical 24 V</td>
+                                                <td>003B MAK (300X600)</td><td>20</td><td>646</td><td>Sewanagala</td><td>WALL TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>USN0003</td>
-                                                <td>Flasher Electrical 12 V</td>
+                                                <td>003C LAK (600X600)</td><td>17</td><td>1512</td><td>pannala</td><td>FLOOR TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>USN0004</td>
-                                                <td>Flasher Electrical 24 V</td>
+                                                <td>009C LAK (600X600)</td><td>30</td><td>1775</td><td>pannala</td><td>FLOOR TILES</td>
                                             </tr>
                                         </tbody>
                                     </table>
