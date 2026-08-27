@@ -598,9 +598,6 @@
                                                 <span class="fw-medium text-dark">{{ $loop->iteration }}</span>
                                             </td>
                                             <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="badge bg-light text-dark">{{ $product->site ?? 'Store' }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
                                                 <span class="fw-medium text-dark">{{ $product->code }}</span>
                                             </td>
                                             <td wire:click="viewProductDetails({{ $product->id }})" class="product-name-cell">
@@ -624,6 +621,9 @@
                                                         class="bi bi-exclamation-triangle-fill ms-1"></i>
                                                         @endif
                                                         </span>
+                                            </td>
+                                            <td wire:click="viewProductDetails({{ $product->id }})">
+                                                <span class="badge bg-light text-dark">{{ $product->site ?? 'Store' }}</span>
                                             </td>
                                             <td wire:click="viewProductDetails({{ $product->id }})">
                                                 <span class="fw-bold text-dark">Rs.{{
