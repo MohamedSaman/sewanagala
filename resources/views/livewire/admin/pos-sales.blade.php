@@ -438,11 +438,11 @@ use App\Models\Sale;
             <div class="modal-content p-4" id="printableInvoice">
                 {{-- Screen Only Header (visible on screen, hidden on print) --}}
                 <div class="screen-only-header pb-4">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div class="w-100 text-center">
-                            <h5 class="mb-1">{{ config('shop.name') }}</h5>
-                            <p class="mb-0">{{ config('shop.tagline') }}</p>
-                        </div>
+                    <div class="pos-print-company-header">
+                        <h1>{{ config('shop.name') }}</h1>
+                        <p class="tagline">{{ config('shop.tagline') }}</p>
+                        <p>{{ config('shop.address') }}</p>
+                        <p><strong>Tel :</strong> {{ config('shop.phone') }} | <strong>WhatsApp :</strong> {{ config('shop.whatsapp') }}</p>
                     </div>
                     <hr class="my-2" style="border-top: 2px solid #000;">
                 </div>
@@ -983,6 +983,11 @@ use App\Models\Sale;
         color: #fff;
     }
 
+    .pos-print-company-header { text-align: center; color: #16285A; line-height: 1.35; }
+    .pos-print-company-header h1 { margin: 0 0 4px; font-size: 26px; font-weight: 800; letter-spacing: .5px; }
+    .pos-print-company-header p { margin: 1px 0; font-size: 12px; color: #374151; }
+    .pos-print-company-header .tagline { font-weight: 700; }
+
     .badge {
         font-size: 0.75em;
     }
@@ -1110,6 +1115,9 @@ use App\Models\Sale;
             font-size: 0.8rem !important;
             color: #000 !important;
         }
+
+        .pos-print-company-header h1 { font-size: 24pt !important; font-weight: 800 !important; color: #000 !important; }
+        .pos-print-company-header p { font-size: 10pt !important; color: #000 !important; }
 
         /* Body content */
         .modal-body {
