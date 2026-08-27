@@ -39,6 +39,7 @@ class Products extends Component
     use WithPagination, WithFileUploads;
 
     public $search = '';
+    public $siteFilter = '';
 
     // Create form fields
     public $code, $name, $model, $brand, $category, $image, $description, $barcode, $status, $supplier, $site = 'Store';
@@ -78,6 +79,11 @@ class Products extends Component
      * This fixes the issue where wrong product shows in modal on different pages
      */
     public function updatingSearch()
+    {
+        $this->resetPage();
+    }
+
+    public function updatingSiteFilter()
     {
         $this->resetPage();
     }
@@ -153,6 +159,7 @@ class Products extends Component
         $brands = BrandList::orderBy('brand_name')->get();
         $categories = CategoryList::orderBy('category_name')->get();
         $suppliers = ProductSupplier::orderBy('name')->get();
+        $sites = ProductDetail::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site');
 
         $query = ProductDetail::join('product_prices', 'product_details.id', '=', 'product_prices.product_id')
             ->join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
@@ -189,6 +196,13 @@ class Products extends Component
             ->orderByRaw("CASE WHEN product_details.code LIKE 'G-%' THEN 1 ELSE 0 END ASC")
             ->orderBy('product_details.code', 'asc');
 
+        if ($this->siteFilter !== '') {
+            $query->where('product_details.site', $this->siteFilter);
+        }
+
+        $totalProductCodes = (clone $query)->count('product_details.id');
+        $totalStockValue = (float) ((clone $query)->selectRaw('COALESCE(SUM(product_stocks.available_stock * product_prices.selling_price), 0) as stock_value')->value('stock_value') ?? 0);
+
         if ($this->perPage === 'all') {
             $totalRows = (clone $query)->count();
             $products = $query->paginate($totalRows > 0 ? $totalRows : 1);
@@ -201,6 +215,9 @@ class Products extends Component
             'brands' => $brands,
             'categories' => $categories,
             'suppliers' => $suppliers,
+            'sites' => $sites,
+            'totalProductCodes' => $totalProductCodes,
+            'totalStockValue' => $totalStockValue,
         ])->layout($this->layout);
     }
     public function updatedPerPage()

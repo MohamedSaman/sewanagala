@@ -492,11 +492,27 @@
 
         <div id="products" class="tab-content active">
             <div class="d-flex justify-content-between align-items-center mb-5">
+                <div class="d-flex justify-content-between align-items-start gap-3 w-100">
                 <div>
                     <h3 class="fw-bold text-dark mb-2">
                         <i class="bi bi-box-seam text-success me-2"></i> Product Inventory Management
                     </h3>
                     <p class="text-muted mb-0">Manage your product catalog and inventory levels efficiently</p>
+                </div>
+                <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
+                    <select wire:model.live="siteFilter" class="form-select form-select-sm" style="min-width: 170px;">
+                        <option value="">All Sites</option>
+                        @foreach($sites as $siteOption)<option value="{{ $siteOption }}">{{ $siteOption }}</option>@endforeach
+                    </select>
+                    <div class="px-3 py-2 rounded border bg-white text-center">
+                        <small class="d-block text-muted">Available Product Codes</small>
+                        <strong class="text-dark">{{ number_format($totalProductCodes) }}</strong>
+                    </div>
+                    <div class="px-3 py-2 rounded border bg-white text-center">
+                        <small class="d-block text-muted">Stock Value</small>
+                        <strong class="text-success">Rs.{{ number_format($totalStockValue, 2) }}</strong>
+                    </div>
+                </div>
                 </div>
             </div>
 
