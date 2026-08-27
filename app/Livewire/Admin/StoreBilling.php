@@ -66,6 +66,8 @@ class StoreBilling extends Component
     // Category and Products for Grid View
     public $categories = [];
     public $selectedCategory = null;
+    public $sites = [];
+    public $selectedSite = '';
     public $products = [];
 
     // Customer Form (for new customer - only used in modal)
@@ -448,6 +450,7 @@ class StoreBilling extends Component
     public function loadCategories()
     {
         $this->categories = CategoryList::orderBy('category_name')->get();
+        $this->sites = ProductDetail::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site')->toArray();
     }
 
     // Load products for grid view
@@ -457,6 +460,10 @@ class StoreBilling extends Component
 
         if ($this->selectedCategory) {
             $query->where('category_id', $this->selectedCategory);
+        }
+
+        if ($this->selectedSite !== '') {
+            $query->where('site', $this->selectedSite);
         }
 
         if (strlen($this->search) >= 2) {
@@ -492,6 +499,12 @@ class StoreBilling extends Component
     public function selectCategory($categoryId)
     {
         $this->selectedCategory = $categoryId == $this->selectedCategory ? null : $categoryId;
+        $this->loadProducts();
+    }
+
+    public function selectSite($site)
+    {
+        $this->selectedSite = $site ?: '';
         $this->loadProducts();
     }
 

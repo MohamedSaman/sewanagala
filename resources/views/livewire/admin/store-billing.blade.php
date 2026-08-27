@@ -527,6 +527,16 @@
                     @endif
                 </div>
 
+                <div class="mt-2 d-flex align-items-center gap-2">
+                    <label class="small fw-semibold text-muted mb-0" for="pos-site-filter">Site:</label>
+                    <select id="pos-site-filter" class="form-select form-select-sm" style="max-width: 220px;" wire:change="selectSite($event.target.value)">
+                        <option value="">All Sites</option>
+                        @foreach($sites as $site)
+                            <option value="{{ $site }}" @selected($selectedSite === $site)>{{ $site }}</option>
+                        @endforeach
+                    </select>
+                </div>
+
                 {{-- Search Dropdown --}}
                 @if(count($searchResults) > 0)
                 <div class="pos-search-dropdown">
