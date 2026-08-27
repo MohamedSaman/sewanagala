@@ -16,8 +16,8 @@ class ProductsTemplateExport implements FromArray, WithHeadings, WithStyles, Wit
     public function array(): array
     {
         return [
-            ['001A LAK-P WHITE', 'Inventory Part', 133, 616, '', 'pannala', 'WALL TILES', 'Revenue'],
-            ['003B MAK (300X600)', 'Inventory Part', 20, 646, '', 'Sewanagala', 'WALL TILES', 'Revenue'],
+            ['SE0001', '001A LAK-P WHITE', 133, 616, 'pannala', 'WALL TILES', 'Revenue'],
+            ['SE0002', '003B MAK (300X600)', 20, 646, 'Sewanagala', 'WALL TILES', 'Revenue'],
         ];
     }
 
@@ -27,7 +27,7 @@ class ProductsTemplateExport implements FromArray, WithHeadings, WithStyles, Wit
     public function headings(): array
     {
         return [
-            'Item Name', 'Item Type', 'on_hand', 'Cost', 'Vendor', 'Site', 'Item Category', 'Income Account',
+            'code', 'Item Name', 'on_hand', 'Cost', 'Site', 'Item Category', 'Income Account',
         ];
     }
 

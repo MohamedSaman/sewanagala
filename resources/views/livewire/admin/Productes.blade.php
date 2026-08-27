@@ -1350,6 +1350,7 @@
                             <hr>
                             <p class="mb-2">Your Excel file should use these columns (the client stock format is supported):</p>
                             <ul class="mb-2">
+                                <li><strong>code</strong> - Product code (for example SE0001)</li>
                                 <li><strong>Item Name</strong> - Product name (required)</li>
                                 <li><strong>on_hand</strong> - Opening stock quantity</li>
                                 <li><strong>Cost</strong>, <strong>Vendor</strong>, <strong>Site</strong>, <strong>Item Category</strong></li>
@@ -1381,25 +1382,21 @@
                                     <table class="table table-bordered mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th>Item Name</th>
-                                                <th>on_hand</th>
-                                                <th>Cost</th>
-                                                <th>Site</th>
-                                                <th>Item Category</th>
+                                                <th>code</th><th>Item Name</th><th>on_hand</th><th>Cost</th><th>Site</th><th>Item Category</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td>001A LAK-P WHITE</td><td>133</td><td>616</td><td>pannala</td><td>WALL TILES</td>
+                                                <td>SE0001</td><td>001A LAK-P WHITE</td><td>133</td><td>616</td><td>pannala</td><td>WALL TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>003B MAK (300X600)</td><td>20</td><td>646</td><td>Sewanagala</td><td>WALL TILES</td>
+                                                <td>SE0002</td><td>003B MAK (300X600)</td><td>20</td><td>646</td><td>Sewanagala</td><td>WALL TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>003C LAK (600X600)</td><td>17</td><td>1512</td><td>pannala</td><td>FLOOR TILES</td>
+                                                <td>SE0003</td><td>003C LAK (600X600)</td><td>17</td><td>1512</td><td>pannala</td><td>FLOOR TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>009C LAK (600X600)</td><td>30</td><td>1775</td><td>pannala</td><td>FLOOR TILES</td>
+                                                <td>SE0004</td><td>009C LAK (600X600)</td><td>30</td><td>1775</td><td>pannala</td><td>FLOOR TILES</td>
                                             </tr>
                                         </tbody>
                                     </table>
