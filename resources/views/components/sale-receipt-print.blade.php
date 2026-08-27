@@ -88,8 +88,8 @@
 
         /* The Paper Canvas - 9.5in x 5.5in */
         .page {
-            width: 80mm;
-            min-height: 40mm;
+            width: 210mm;
+            min-height: 260mm;
             height: auto;
             background: #fff;
             position: relative;
@@ -105,7 +105,7 @@
             .sidebar { display: none !important; }
             .main-content { margin: 0 !important; padding: 0 !important; background: transparent !important; display: block !important;}
             .page {
-                width: 80mm !important;
+                width: 210mm !important;
                 min-height: 0 !important;
                 height: auto !important;
                 margin: 0 !important; 
@@ -116,25 +116,25 @@
             .selectable-item { border: none !important; cursor: auto !important; }
             .selected-element { outline: none !important; background: transparent !important; }
             @page {
-                size: 80mm auto;
-                margin: 0;
+                size: A4 portrait;
+                margin: 8mm;
             }
         }
 
-        .thermal-header { text-align:center; border-bottom:1px dashed #000; padding-bottom:3mm; margin-bottom:3mm; }
-        .thermal-header h1 { font-size:15pt; margin-bottom:1mm; }
-        .thermal-header p { font-size:8pt; line-height:1.35; }
-        .thermal-meta { display:grid; grid-template-columns:1fr 1fr; gap:1mm; font-size:8pt; margin-bottom:3mm; }
+        .thermal-header { text-align:center; border-bottom:1px solid #000; padding-bottom:3mm; margin-bottom:4mm; }
+        .thermal-header h1 { font-size:20pt; letter-spacing:1px; margin-bottom:1mm; }
+        .thermal-header p { font-size:9pt; line-height:1.35; }
+        .thermal-meta { display:grid; grid-template-columns:1fr 1fr; gap:1mm; font-size:9pt; margin-bottom:4mm; }
         .thermal-meta div:nth-child(even) { text-align:right; }
-        .thermal-table { width:100%; border-collapse:collapse; font-size:7.5pt; }
+        .thermal-table { width:100%; border-collapse:collapse; font-size:9pt; }
         .thermal-table th { border-top:1px solid #000; border-bottom:1px solid #000; padding:1.5mm 0; text-align:left; }
         .thermal-table td { padding:1.3mm 0; vertical-align:top; }
         .thermal-table .num { text-align:right; white-space:nowrap; }
-        .thermal-summary { border-top:1px dashed #000; margin-top:2mm; padding-top:2mm; font-size:8.5pt; }
+        .thermal-summary { border-top:1px solid #000; margin-top:4mm; padding-top:3mm; font-size:9pt; }
         .thermal-summary div { display:flex; justify-content:space-between; margin-bottom:1mm; }
         .thermal-summary .grand { border-top:1px solid #000; padding-top:2mm; font-size:10pt; font-weight:bold; }
-        .thermal-section-title { border-top:1px dashed #000; margin-top:3mm; padding-top:2mm; font-size:9pt; font-weight:bold; }
-        .thermal-footer { border-top:1px dashed #000; margin-top:4mm; padding-top:3mm; text-align:center; font-size:7.5pt; line-height:1.4; }
+        .thermal-section-title { border-top:1px solid #000; margin-top:5mm; padding-top:3mm; font-size:10pt; font-weight:bold; }
+        .thermal-footer { border-top:1px solid #000; margin-top:7mm; padding-top:4mm; text-align:center; font-size:9pt; line-height:1.5; }
 
         /* Absolute Positioning System */
         .data-field { 
