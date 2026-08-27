@@ -11,7 +11,7 @@
 
             <!-- ===== LEFT: Branding panel ===== -->
             <div class="brand-panel">
-                <img src="{{ asset('images/sewanagala-banner.png') }}" alt="{{ config('shop.name') }}" class="brand-logo brand-banner">
+                <img src="{{ asset('images/sewanagala-login-brand.png') }}" alt="{{ config('shop.name') }}" class="brand-logo brand-banner">
 
                 <div class="brand-divider"></div>
 

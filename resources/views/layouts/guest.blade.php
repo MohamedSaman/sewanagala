@@ -113,7 +113,8 @@
 
         .brand-panel img.brand-banner {
             width: 100%;
-            max-width: 390px;
+            max-width: 360px;
+            max-height: 380px;
             height: auto;
             padding: 0;
             background: transparent;
