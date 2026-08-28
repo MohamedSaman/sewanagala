@@ -700,7 +700,16 @@
                                                             </select>
                                                         </div>
                                                         <div class="col-md-4">
-                                                            <input type="date" wire:model.defer="paymentRows.{{ $index }}.cheque_date" class="form-control form-control-sm border-0 shadow-sm">
+                                                            <input type="date" wire:model.live="paymentRows.{{ $index }}.cheque_date" class="form-control form-control-sm border-0 shadow-sm @error('paymentRows.'.$index.'.cheque_date') is-invalid @enderror">
+                                                            @error('paymentRows.'.$index.'.cheque_date')
+                                                                <div class="invalid-feedback small">{{ $message }}</div>
+                                                            @enderror
+                                                            @if(!empty($row['cheque_date']) && \App\Models\Holiday::isHoliday($row['cheque_date']))
+                                                                <div class="text-danger small mt-1">
+                                                                    <i class="bi bi-shield-x me-1"></i>
+                                                                    <strong>Holiday / Poya:</strong> {{ \App\Models\Holiday::getHolidayReason($row['cheque_date']) }}
+                                                                </div>
+                                                            @endif
                                                         </div>
                                                         <div class="col-md-12 mt-2">
                                                             <label class="form-label small fw-bold mb-1">Cheque Photo</label>

@@ -11,7 +11,254 @@
 
     {{-- Accordion --}}
     <div class="accordion" id="settingsAccordion">
-        
+
+        {{-- Holiday & Poya Calendar Accordion --}}
+        <div class="accordion-item border-0 mb-4 shadow-sm rounded-4">
+            <h2 class="accordion-header" id="headingHolidays">
+                <button class="accordion-button fw-semibold bg-white text-dark rounded-4"
+                    type="button" data-bs-toggle="collapse"
+                    data-bs-target="#collapseHolidays" aria-expanded="true"
+                    aria-controls="collapseHolidays">
+                    <i class="bi bi-calendar-event fs-5 me-3 text-danger"></i>
+                    Holiday & Poya Calendar (Cheque Restrictions)
+                </button>
+            </h2>
+            <div id="collapseHolidays" class="accordion-collapse collapse show"
+                aria-labelledby="headingHolidays" data-bs-parent="#settingsAccordion">
+                <div class="accordion-body">
+                    @php
+                        $currentMonthCarbon = \Illuminate\Support\Carbon::createFromDate($calendarYear, $calendarMonth, 1);
+                        $daysInMonth = $currentMonthCarbon->daysInMonth;
+                        $startDayOfWeek = $currentMonthCarbon->dayOfWeek; // 0 for Sunday, 6 for Saturday
+                        $todayDateStr = now()->format('Y-m-d');
+                        
+                        $holidaysByDate = $holidays->keyBy(function($h) {
+                            return \Illuminate\Support\Carbon::parse($h->date)->format('Y-m-d');
+                        });
+
+                        $thisMonthHolidays = $holidays->filter(function($h) use ($calendarYear, $calendarMonth) {
+                            $d = \Illuminate\Support\Carbon::parse($h->date);
+                            return (int)$d->year === (int)$calendarYear && (int)$d->month === (int)$calendarMonth;
+                        });
+                    @endphp
+
+                    {{-- Notice Alert --}}
+                    <div class="alert alert-warning border-0 shadow-sm mb-4 d-flex align-items-center">
+                        <i class="bi bi-shield-exclamation fs-3 me-3 text-warning"></i>
+                        <div class="small">
+                            <strong>Cheque Realization & Deposit Restriction:</strong>
+                            Dates marked with <em>"Cheque Blocked"</em> prevent users from selecting them as cheque realization or deposit dates in billing, POS, customer receipt, and supplier payment modules.
+                        </div>
+                    </div>
+
+                    {{-- Calendar Header Controls --}}
+                    <div class="card shadow-sm border-0 mb-4 bg-light rounded-3">
+                        <div class="card-body p-3 d-flex flex-wrap justify-content-between align-items-center gap-3">
+                            <div class="d-flex align-items-center gap-2">
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-white btn-sm border shadow-sm" wire:click="prevCalendarMonth" title="Previous Month">
+                                        <i class="bi bi-chevron-left"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-white btn-sm border shadow-sm" wire:click="todayCalendarMonth" title="Current Month">
+                                        Today
+                                    </button>
+                                    <button type="button" class="btn btn-white btn-sm border shadow-sm" wire:click="nextCalendarMonth" title="Next Month">
+                                        <i class="bi bi-chevron-right"></i>
+                                    </button>
+                                </div>
+                                <h4 class="mb-0 fw-bold text-dark ms-2">
+                                    {{ $currentMonthCarbon->format('F Y') }}
+                                </h4>
+                                <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle ms-2">
+                                    {{ $thisMonthHolidays->count() }} Holiday(s) this month
+                                </span>
+                            </div>
+
+                            <div>
+                                <button class="btn btn-danger shadow-sm" wire:click="openAddHolidayModal">
+                                    <i class="bi bi-plus-circle me-1"></i> Add Holiday / Poya Day
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- Visual Calendar Grid --}}
+                    <div class="card shadow-sm border-0 mb-4 overflow-hidden rounded-3">
+                        <div class="calendar-grid-container">
+                            {{-- Day Headers --}}
+                            <div class="calendar-grid calendar-grid-header">
+                                <div class="calendar-header-cell text-danger">Sun</div>
+                                <div class="calendar-header-cell">Mon</div>
+                                <div class="calendar-header-cell">Tue</div>
+                                <div class="calendar-header-cell">Wed</div>
+                                <div class="calendar-header-cell">Thu</div>
+                                <div class="calendar-header-cell">Fri</div>
+                                <div class="calendar-header-cell text-danger">Sat</div>
+                            </div>
+
+                            {{-- Days Cells --}}
+                            <div class="calendar-grid">
+                                {{-- Empty leading cells --}}
+                                @for($i = 0; $i < $startDayOfWeek; $i++)
+                                    <div class="calendar-cell calendar-cell-muted"></div>
+                                @endfor
+
+                                {{-- Days in Month --}}
+                                @for($day = 1; $day <= $daysInMonth; $day++)
+                                    @php
+                                        $cellDate = sprintf('%04d-%02d-%02d', $calendarYear, $calendarMonth, $day);
+                                        $dayCarbon = \Illuminate\Support\Carbon::createFromDate($calendarYear, $calendarMonth, $day);
+                                        $isToday = ($cellDate === $todayDateStr);
+                                        $isWeekend = in_array($dayCarbon->dayOfWeek, [0, 6]);
+                                        $hasHoliday = $holidaysByDate->has($cellDate);
+                                        $holidayItem = $hasHoliday ? $holidaysByDate->get($cellDate) : null;
+                                    @endphp
+                                    <div class="calendar-cell {{ $isToday ? 'is-today' : '' }} {{ $hasHoliday ? 'has-holiday' : '' }}">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="day-number {{ $isToday ? 'badge bg-primary text-white rounded-circle' : ($isWeekend ? 'text-danger fw-bold' : 'fw-bold text-dark') }}">
+                                                {{ $day }}
+                                            </span>
+                                            @if(!$hasHoliday)
+                                                <button type="button" class="btn btn-xs btn-link text-muted p-0 quick-add-btn" 
+                                                        wire:click="openAddHolidayModal('{{ $cellDate }}')" 
+                                                        title="Mark as holiday">
+                                                    <i class="bi bi-plus-circle"></i>
+                                                </button>
+                                            @endif
+                                        </div>
+
+                                        @if($hasHoliday)
+                                            <div class="holiday-card p-1 rounded-2 shadow-xs" 
+                                                 wire:click="openEditHolidayModal({{ $holidayItem->id }})"
+                                                 title="Click to edit: {{ $holidayItem->description }}">
+                                                <div class="d-flex align-items-center mb-1">
+                                                    <i class="bi bi-moon-stars-fill text-danger me-1 small"></i>
+                                                    <span class="holiday-title text-truncate fw-semibold text-danger small">
+                                                        {{ $holidayItem->description }}
+                                                    </span>
+                                                </div>
+                                                <div class="d-flex justify-content-between align-items-center">
+                                                    @if($holidayItem->is_blocked_for_cheque)
+                                                        <span class="badge bg-danger text-white px-1" style="font-size: 0.65rem;">
+                                                            <i class="bi bi-lock-fill"></i> Blocked
+                                                        </span>
+                                                    @else
+                                                        <span class="badge bg-secondary text-white px-1" style="font-size: 0.65rem;">
+                                                            Allowed
+                                                        </span>
+                                                    @endif
+                                                    <button type="button" class="btn btn-xs text-danger p-0 ms-1 border-0 bg-transparent"
+                                                            wire:click.stop="confirmDeleteHoliday({{ $holidayItem->id }})" 
+                                                            title="Delete Holiday">
+                                                        <i class="bi bi-x-circle-fill"></i>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        @endif
+                                    </div>
+                                @endfor
+
+                                {{-- Trailing empty cells --}}
+                                @php
+                                    $totalCells = $startDayOfWeek + $daysInMonth;
+                                    $trailingCells = (7 - ($totalCells % 7)) % 7;
+                                @endphp
+                                @for($i = 0; $i < $trailingCells; $i++)
+                                    <div class="calendar-cell calendar-cell-muted"></div>
+                                @endfor
+                            </div>
+                        </div>
+                    </div>
+
+                    {{-- All Configured Holidays Table --}}
+                    <div class="card shadow-sm border-0 rounded-3">
+                        <div class="card-header bg-light d-flex justify-content-between align-items-center py-3">
+                            <h6 class="mb-0 fw-bold text-dark">
+                                <i class="bi bi-list-check me-2 text-danger"></i> All Registered Holidays & Poya Days ({{ $holidays->count() }})
+                            </h6>
+                            <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-3 py-1">
+                                <i class="bi bi-shield-x me-1"></i> {{ $holidays->where('is_blocked_for_cheque', true)->count() }} Cheque Blocked
+                            </span>
+                        </div>
+                        <div class="card-body p-0">
+                            @if($holidays->isNotEmpty())
+                            <div class="table-responsive">
+                                <table class="table table-hover align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th class="ps-3" style="width: 160px;">Date</th>
+                                            <th style="width: 120px;">Day</th>
+                                            <th>Holiday / Event Description</th>
+                                            <th class="text-center" style="width: 180px;">Cheque Settlement</th>
+                                            <th style="width: 150px;">Created By</th>
+                                            <th class="text-center pe-3" style="width: 120px;">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($holidays as $hItem)
+                                        @php
+                                            $hCarbon = \Illuminate\Support\Carbon::parse($hItem->date);
+                                            $isPast = $hCarbon->isPast() && !$hCarbon->isToday();
+                                        @endphp
+                                        <tr class="{{ $isPast ? 'text-muted bg-light bg-opacity-25' : '' }}">
+                                            <td class="ps-3 fw-bold text-dark">
+                                                <i class="bi bi-calendar-event me-2 text-danger"></i>
+                                                {{ $hCarbon->format('d M Y') }}
+                                            </td>
+                                            <td>
+                                                <span class="badge {{ in_array($hCarbon->dayOfWeek, [0,6]) ? 'bg-danger bg-opacity-10 text-danger' : 'bg-secondary bg-opacity-10 text-secondary' }} border">
+                                                    {{ $hCarbon->format('l') }}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <div class="fw-semibold text-dark">{{ $hItem->description }}</div>
+                                            </td>
+                                            <td class="text-center">
+                                                @if($hItem->is_blocked_for_cheque)
+                                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle px-2 py-1">
+                                                        <i class="bi bi-shield-x me-1"></i> Blocked
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-success bg-opacity-10 text-success border border-success-subtle px-2 py-1">
+                                                        <i class="bi bi-check-circle me-1"></i> Allowed
+                                                    </span>
+                                                @endif
+                                            </td>
+                                            <td>
+                                                <small class="text-muted">
+                                                    <i class="bi bi-person me-1"></i>{{ $hItem->creator->name ?? 'Admin' }}
+                                                </small>
+                                            </td>
+                                            <td class="text-center pe-3">
+                                                <button class="btn btn-sm btn-outline-primary me-1" 
+                                                        wire:click="openEditHolidayModal({{ $hItem->id }})" 
+                                                        title="Edit Holiday">
+                                                    <i class="bi bi-pencil"></i>
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" 
+                                                        wire:click="confirmDeleteHoliday({{ $hItem->id }})" 
+                                                        title="Delete Holiday">
+                                                    <i class="bi bi-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+                            @else
+                            <div class="text-center py-5 text-muted">
+                                <i class="bi bi-calendar-x display-4 d-block mb-3 text-secondary"></i>
+                                No holidays or Poya days registered yet.<br>
+                                <small>Click "Add Holiday / Poya Day" above to configure your first holiday.</small>
+                            </div>
+                            @endif
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
 
 
         {{-- Expense Categories Management Accordion --}}
@@ -624,6 +871,82 @@
     </div>
     @endif
 
+    {{-- Holiday & Poya Day Modal --}}
+    @if($showHolidayModal)
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);" wire:key="holiday-modal">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 rounded-4 shadow-lg">
+                <div class="modal-header bg-danger text-white rounded-top-4">
+                    <h5 class="modal-title fw-bold">
+                        @if($isEditHoliday)
+                        <i class="bi bi-pencil-square"></i> Edit Holiday / Poya Day
+                        @else
+                        <i class="bi bi-plus-circle"></i> Add Holiday / Poya Day
+                        @endif
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" wire:click="closeHolidayModal"></button>
+                </div>
+
+                <form wire:submit.prevent="saveHoliday">
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Holiday Date <span class="text-danger">*</span></label>
+                            <input type="date" wire:model="holidayDate"
+                                class="form-control @error('holidayDate') is-invalid @enderror">
+                            @error('holidayDate')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label fw-semibold">Description / Holiday Name</label>
+                            <input type="text" wire:model="holidayDescription"
+                                class="form-control @error('holidayDescription') is-invalid @enderror"
+                                placeholder="e.g., Duruthu Full Moon Poya Day, Bank Holiday, Christmas...">
+                            @error('holidayDescription')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
+                        <div class="p-3 bg-light rounded-3 border mb-2">
+                            <div class="form-check form-switch mb-1">
+                                <input class="form-check-input" type="checkbox" role="switch" id="isBlockedForCheque"
+                                    wire:model="isBlockedForCheque">
+                                <label class="form-check-label fw-bold text-dark" for="isBlockedForCheque">
+                                    <i class="bi bi-shield-x text-danger me-1"></i> Block Cheque Realization / Deposits
+                                </label>
+                            </div>
+                            <small class="text-muted d-block ps-4">
+                                When enabled, users will NOT be allowed to issue or realize cheques on this date across the entire system.
+                            </small>
+                        </div>
+                    </div>
+
+                    <div class="modal-footer border-top">
+                        <button type="button" class="btn btn-secondary shadow-sm" wire:click="closeHolidayModal" wire:loading.attr="disabled">
+                            <i class="bi bi-x-circle"></i> Cancel
+                        </button>
+                        <button type="submit" class="btn btn-danger text-white shadow-sm" wire:loading.attr="disabled">
+                            <span wire:loading.remove wire:target="saveHoliday">
+                                <i class="bi bi-check-circle"></i>
+                                @if($isEditHoliday)
+                                Update Holiday
+                                @else
+                                Save Holiday
+                                @endif
+                            </span>
+                            <span wire:loading wire:target="saveHoliday">
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                                Processing...
+                            </span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    @endif
+
 </div>
 
 @push('styles')
@@ -675,6 +998,115 @@
 
     .accordion-body {
         padding: 1.5rem;
+    }
+
+    /* Calendar Grid Styles */
+    .calendar-grid-container {
+        background-color: #fff;
+        border: 1px solid #dee2e6;
+        border-radius: 0.5rem;
+        overflow: hidden;
+    }
+
+    .calendar-grid {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+    }
+
+    .calendar-grid-header {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .calendar-header-cell {
+        padding: 0.75rem 0.5rem;
+        font-weight: 700;
+        font-size: 0.85rem;
+        text-align: center;
+        text-transform: uppercase;
+        color: #495057;
+        border-right: 1px solid #dee2e6;
+    }
+
+    .calendar-header-cell:last-child {
+        border-right: none;
+    }
+
+    .calendar-cell {
+        min-height: 110px;
+        padding: 0.5rem;
+        border-right: 1px solid #dee2e6;
+        border-bottom: 1px solid #dee2e6;
+        background-color: #fff;
+        position: relative;
+        transition: background-color 0.15s ease-in-out;
+    }
+
+    .calendar-cell:nth-child(7n) {
+        border-right: none;
+    }
+
+    .calendar-cell-muted {
+        background-color: #fafafa;
+    }
+
+    .calendar-cell:hover:not(.calendar-cell-muted) {
+        background-color: #f8faff;
+    }
+
+    .calendar-cell.is-today {
+        background-color: #f0f7ff;
+        box-shadow: inset 0 0 0 2px #0d6efd;
+    }
+
+    .calendar-cell.has-holiday {
+        background-color: #fff9f9;
+    }
+
+    .day-number {
+        font-size: 0.875rem;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 24px;
+        height: 24px;
+    }
+
+    .quick-add-btn {
+        opacity: 0;
+        transition: opacity 0.15s ease-in-out;
+    }
+
+    .calendar-cell:hover .quick-add-btn {
+        opacity: 1;
+    }
+
+    .holiday-card {
+        background-color: #fee2e2;
+        border: 1px solid #fca5a5;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .holiday-card:hover {
+        transform: scale(1.02);
+        box-shadow: 0 0.125rem 0.25rem rgba(220, 53, 69, 0.2);
+    }
+
+    .btn-xs {
+        padding: 0.1rem 0.25rem;
+        font-size: 0.75rem;
+    }
+
+    @media (max-width: 768px) {
+        .calendar-cell {
+            min-height: 80px;
+            padding: 0.25rem;
+        }
+        .calendar-header-cell {
+            font-size: 0.75rem;
+            padding: 0.5rem 0.2rem;
+        }
     }
 </style>
 @endpush
@@ -739,6 +1171,27 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 Livewire.dispatch('deleteCategoryTypeConfirmed', {
+                    id: event.detail.id
+                });
+            }
+        });
+    });
+
+    // SweetAlert for delete confirmation (Holidays / Poya Days)
+    window.addEventListener('swal:confirm-delete-holiday', event => {
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "This holiday / poya day restriction will be permanently deleted!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#d33',
+            cancelButtonColor: '#3085d6',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel',
+            reverseButtons: true
+        }).then((result) => {
+            if (result.isConfirmed) {
+                Livewire.dispatch('deleteHolidayConfirmed', {
                     id: event.detail.id
                 });
             }

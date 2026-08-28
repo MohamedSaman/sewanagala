@@ -146,7 +146,15 @@
                             <td>{{ $cheque->customer->name ?? '-' }}</td>
                             <td class="text-center">{{ $cheque->bank_name }}</td>
                             <td class="text-center">Rs.{{ number_format($cheque->cheque_amount, 2) }}</td>
-                            <td class="text-center">{{ $cheque->cheque_date ? date('d-m-Y', strtotime($cheque->cheque_date)) : '-' }}</td>
+                            <td class="text-center">
+                                {{ $cheque->cheque_date ? date('d-m-Y', strtotime($cheque->cheque_date)) : '-' }}
+                                @if($cheque->cheque_date && \App\Models\Holiday::isHoliday($cheque->cheque_date))
+                                    <br>
+                                    <span class="badge bg-danger bg-opacity-10 text-danger border border-danger-subtle py-0 px-1" style="font-size: 0.7rem;" title="Holiday / Poya Day: {{ \App\Models\Holiday::getHolidayReason($cheque->cheque_date) }}">
+                                        <i class="bi bi-moon-stars"></i> Holiday
+                                    </span>
+                                @endif
+                            </td>
                             <td class="text-center">
                                 <span class="badge bg-{{ $cheque->status == 'pending' ? 'warning' : ($cheque->status == 'complete' ? 'success' : ($cheque->status == 'return' ? 'danger' : 'secondary')) }}">
                                     {{ ucfirst($cheque->status) }}
@@ -299,6 +307,12 @@
                         <input type="date" class="form-control @error('editChequeDate') is-invalid @enderror"
                             wire:model.live="editChequeDate">
                         @error('editChequeDate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        @if($editChequeDate && \App\Models\Holiday::isHoliday($editChequeDate))
+                            <div class="alert alert-danger py-1 px-2 mt-2 mb-0 small border-0 shadow-sm">
+                                <i class="bi bi-shield-x me-1"></i>
+                                <strong>Holiday / Poya Day:</strong> {{ \App\Models\Holiday::getHolidayReason($editChequeDate) }}. Cheque realization is blocked on this date.
+                            </div>
+                        @endif
                     </div>
 
                     {{-- Cheque Photo --}}

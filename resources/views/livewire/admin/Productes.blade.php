@@ -1369,7 +1369,7 @@
                                 <li><strong>code</strong> - Product code (for example SE0001)</li>
                                 <li><strong>Item Name</strong> - Product name (required)</li>
                                 <li><strong>on_hand</strong> - Opening stock quantity</li>
-                                <li><strong>Cost</strong>, <strong>Vendor</strong>, <strong>Site</strong>, <strong>Item Category</strong></li>
+                                <li><strong>Cost</strong> (Supplier Price), <strong>Selling Price</strong>, <strong>Vendor</strong>, <strong>Site</strong>, <strong>Item Category</strong></li>
                             </ul>
                             <p class="mb-2"><strong>Note:</strong> Products, categories, vendors, prices, stock batches and site values are created automatically. If CODE/NAME headers are used, they are also accepted.
                             </p>
@@ -1377,7 +1377,7 @@
                                 <li>Brand: Default Brand</li>
                                 <li>Category: Default Category</li>
                                 <li>Supplier: Default Supplier</li>
-                                <li>Prices: Rs. 0.00</li>
+                                <li>Prices: Cost & Selling Price from Excel (or Rs. 0.00)</li>
                                 <li>Stock: 0</li>
                                 <li>Status: Active</li>
                             </ul>
@@ -1398,21 +1398,21 @@
                                     <table class="table table-bordered mb-0">
                                         <thead class="table-light">
                                             <tr>
-                                                <th>code</th><th>Item Name</th><th>on_hand</th><th>Cost</th><th>Site</th><th>Item Category</th>
+                                                <th>code</th><th>Item Name</th><th>on_hand</th><th>Cost</th><th>Selling Price</th><th>Site</th><th>Item Category</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <tr>
-                                                <td>SE0001</td><td>001A LAK-P WHITE</td><td>133</td><td>616</td><td>pannala</td><td>WALL TILES</td>
+                                                <td>SE0001</td><td>001A LAK-P WHITE</td><td>133</td><td>616</td><td>750</td><td>pannala</td><td>WALL TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>SE0002</td><td>003B MAK (300X600)</td><td>20</td><td>646</td><td>Sewanagala</td><td>WALL TILES</td>
+                                                <td>SE0002</td><td>003B MAK (300X600)</td><td>20</td><td>646</td><td>800</td><td>Sewanagala</td><td>WALL TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>SE0003</td><td>003C LAK (600X600)</td><td>17</td><td>1512</td><td>pannala</td><td>FLOOR TILES</td>
+                                                <td>SE0003</td><td>003C LAK (600X600)</td><td>17</td><td>1512</td><td>1800</td><td>pannala</td><td>FLOOR TILES</td>
                                             </tr>
                                             <tr>
-                                                <td>SE0004</td><td>009C LAK (600X600)</td><td>30</td><td>1775</td><td>pannala</td><td>FLOOR TILES</td>
+                                                <td>SE0004</td><td>009C LAK (600X600)</td><td>30</td><td>1775</td><td>2100</td><td>pannala</td><td>FLOOR TILES</td>
                                             </tr>
                                         </tbody>
                                     </table>

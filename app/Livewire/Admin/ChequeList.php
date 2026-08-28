@@ -7,6 +7,7 @@ use Livewire\WithFileUploads;
 use Livewire\WithPagination;
 use App\Models\Cheque;
 use App\Models\Customer;
+use App\Models\Holiday;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Illuminate\Support\Facades\Log;
@@ -155,6 +156,16 @@ class ChequeList extends Component
         $this->showEditModal = true;
     }
 
+    public function updatedEditChequeDate($value)
+    {
+        if (!empty($value) && Holiday::isHoliday($value)) {
+            $reason = Holiday::getHolidayReason($value);
+            $this->addError('editChequeDate', "Warning: {$value} is marked as a Holiday / Poya Day ({$reason}). Cheques cannot be dated on this day.");
+        } else {
+            $this->resetErrorBag('editChequeDate');
+        }
+    }
+
     public function updateCheque()
     {
         $this->validate([
@@ -170,6 +181,12 @@ class ChequeList extends Component
             'editChequePhoto.mimes'     => 'Cheque photo must be JPG, JPEG or PNG.',
             'editChequePhoto.max'       => 'Cheque photo size may not be greater than 5MB.',
         ]);
+
+        if (Holiday::isHoliday($this->editChequeDate)) {
+            $reason = Holiday::getHolidayReason($this->editChequeDate);
+            $this->addError('editChequeDate', "The selected date ({$this->editChequeDate}) is marked as a Holiday / Poya Day ({$reason}). Cheque realization is blocked on this date.");
+            return;
+        }
 
         try {
             $cheque = Cheque::find($this->editId);

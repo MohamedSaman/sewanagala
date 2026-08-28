@@ -57,21 +57,25 @@ class ProductsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEm
         $supplier = $supplierName === 'Default Supplier' ? ProductSupplier::find($this->defaultSupplierId) :
             ProductSupplier::firstOrCreate(['name' => $supplierName], ['status' => 'active']);
         $stock = max(0, (int) round((float) str_replace(',', '', (string) ($row['on_hand'] ?? $row['stock'] ?? 0))));
-        $cost = max(0, (float) str_replace(',', '', (string) ($row['cost'] ?? 0)));
+        $cost = max(0, (float) str_replace(',', '', (string) ($row['cost'] ?? $row['supplier_price'] ?? 0)));
+        $sellingPriceRaw = $row['selling_price'] ?? $row['sellingprice'] ?? $row['price'] ?? $row['sell_price'] ?? $row['selling'] ?? null;
+        $sellingPrice = ($sellingPriceRaw !== null && trim((string)$sellingPriceRaw) !== '')
+            ? max(0, (float) str_replace(',', '', (string) $sellingPriceRaw))
+            : $cost;
         $site = trim((string) ($row['site'] ?? '')) ?: 'Store';
 
-        DB::transaction(function () use ($name, $code, $category, $supplier, $stock, $cost, $site) {
+        DB::transaction(function () use ($name, $code, $category, $supplier, $stock, $cost, $sellingPrice, $site) {
             $product = ProductDetail::create([
                 'code' => $code, 'name' => $name, 'status' => 'active',
                 'brand_id' => $this->defaultBrandId, 'category_id' => $category->id,
                 'supplier_id' => $supplier->id, 'site' => $site,
             ]);
-            ProductPrice::create(['product_id' => $product->id, 'supplier_price' => $cost, 'selling_price' => $cost, 'discount_price' => 0]);
+            ProductPrice::create(['product_id' => $product->id, 'supplier_price' => $cost, 'selling_price' => $sellingPrice, 'discount_price' => 0]);
             ProductStock::create(['product_id' => $product->id, 'available_stock' => $stock, 'damage_stock' => 0, 'total_stock' => $stock, 'restocked_quantity' => $stock]);
             if ($stock > 0) {
                 ProductBatch::create([
                     'product_id' => $product->id, 'batch_number' => ProductBatch::generateBatchNumber($product->id),
-                    'supplier_price' => $cost, 'selling_price' => $cost, 'quantity' => $stock,
+                    'supplier_price' => $cost, 'selling_price' => $sellingPrice, 'quantity' => $stock,
                     'remaining_quantity' => $stock, 'received_date' => now(), 'status' => 'active',
                 ]);
             }
@@ -82,7 +86,12 @@ class ProductsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEm
 
     public function rules(): array
     {
-        return ['item_name' => 'nullable|string|max:255', 'on_hand' => 'nullable|numeric', 'cost' => 'nullable|numeric'];
+        return [
+            'item_name' => 'nullable|string|max:255',
+            'on_hand' => 'nullable|numeric',
+            'cost' => 'nullable|numeric',
+            'selling_price' => 'nullable|numeric',
+        ];
     }
 
     public function getSuccessCount(): int { return $this->successCount; }

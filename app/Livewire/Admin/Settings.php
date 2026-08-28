@@ -8,9 +8,12 @@ use App\Models\User;
 use App\Models\StaffPermission;
 use App\Models\Expense;
 use App\Models\ExpenseCategory;
+use App\Models\Holiday;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use App\Livewire\Concerns\WithDynamicLayout;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 
 #[Title("System Settings")]
 class Settings extends Component
@@ -24,6 +27,18 @@ class Settings extends Component
     public $isEdit = false;
     public $editingId = null;
     public $deleteId = null;
+
+    // Holiday & Poya Calendar Management
+    public $holidays = [];
+    public $calendarYear;
+    public $calendarMonth;
+    public $holidayDate = '';
+    public $holidayDescription = '';
+    public $isBlockedForCheque = true;
+    public $showHolidayModal = false;
+    public $isEditHoliday = false;
+    public $editingHolidayId = null;
+    public $deleteHolidayId = null;
 
     // Staff Permission Management
     public $staffMembers = [];
@@ -61,7 +76,8 @@ class Settings extends Component
     protected $listeners = [
         'deleteConfirmed' => 'deleteConfiguration', 
         'deleteExpenseConfirmed' => 'deleteExpense',
-        'deleteCategoryTypeConfirmed' => 'deleteCategoryType'
+        'deleteCategoryTypeConfirmed' => 'deleteCategoryType',
+        'deleteHolidayConfirmed' => 'deleteHoliday',
     ];
 
     protected $rules = [
@@ -79,10 +95,13 @@ class Settings extends Component
 
     public function mount()
     {
+        $this->calendarYear = (int)now()->format('Y');
+        $this->calendarMonth = (int)now()->format('m');
         $this->loadSettings();
         $this->loadStaffMembers();
         $this->loadExpenses();
         $this->loadExpenseCategories();
+        $this->loadHolidays();
         $this->availablePermissions = StaffPermission::availablePermissions();
         $this->permissionCategories = StaffPermission::permissionCategories();
         $this->expenseDate = now()->format('Y-m-d');
@@ -490,6 +509,156 @@ class Settings extends Component
             $this->js("Swal.fire('Success!', 'Expense category/type has been deleted successfully.', 'success')");
         } catch (\Exception $e) {
             $this->js("Swal.fire('Error!', 'Unable to delete category/type. Please try again.', 'error')");
+        }
+    }
+
+    // ==========================================
+    // Holiday & Poya Calendar Methods
+    // ==========================================
+
+    public function loadHolidays()
+    {
+        $this->holidays = Holiday::with('creator')
+            ->orderBy('date', 'asc')
+            ->get();
+    }
+
+    public function prevCalendarMonth()
+    {
+        $current = Carbon::createFromDate($this->calendarYear, $this->calendarMonth, 1)->subMonth();
+        $this->calendarYear = (int)$current->year;
+        $this->calendarMonth = (int)$current->month;
+    }
+
+    public function nextCalendarMonth()
+    {
+        $current = Carbon::createFromDate($this->calendarYear, $this->calendarMonth, 1)->addMonth();
+        $this->calendarYear = (int)$current->year;
+        $this->calendarMonth = (int)$current->month;
+    }
+
+    public function todayCalendarMonth()
+    {
+        $now = now();
+        $this->calendarYear = (int)$now->year;
+        $this->calendarMonth = (int)$now->month;
+    }
+
+    public function openAddHolidayModal($date = null)
+    {
+        $this->resetHolidayForm();
+        $this->holidayDate = $date ?: now()->format('Y-m-d');
+        $this->isBlockedForCheque = true;
+        $this->showHolidayModal = true;
+    }
+
+    public function openEditHolidayModal($id)
+    {
+        $holiday = Holiday::findOrFail($id);
+        $this->editingHolidayId = $id;
+        $this->holidayDate = Carbon::parse($holiday->date)->format('Y-m-d');
+        $this->holidayDescription = $holiday->description ?? '';
+        $this->isBlockedForCheque = (bool)$holiday->is_blocked_for_cheque;
+        $this->isEditHoliday = true;
+        $this->showHolidayModal = true;
+    }
+
+    public function closeHolidayModal()
+    {
+        $this->showHolidayModal = false;
+        $this->resetHolidayForm();
+    }
+
+    public function resetHolidayForm()
+    {
+        $this->holidayDate = '';
+        $this->holidayDescription = '';
+        $this->isBlockedForCheque = true;
+        $this->isEditHoliday = false;
+        $this->editingHolidayId = null;
+        $this->deleteHolidayId = null;
+        $this->resetErrorBag();
+    }
+
+    public function saveHoliday()
+    {
+        $this->validate([
+            'holidayDate' => 'required|date',
+            'holidayDescription' => 'nullable|string|max:500',
+        ], [
+            'holidayDate.required' => 'The date is required.',
+            'holidayDate.date' => 'Please enter a valid date.',
+        ]);
+
+        try {
+            $formattedDate = Carbon::parse($this->holidayDate)->format('Y-m-d');
+
+            if ($this->isEditHoliday && $this->editingHolidayId) {
+                $exists = Holiday::where('date', $formattedDate)
+                    ->where('id', '!=', $this->editingHolidayId)
+                    ->exists();
+
+                if ($exists) {
+                    $this->addError('holidayDate', 'An entry already exists for this date.');
+                    return;
+                }
+
+                $holiday = Holiday::findOrFail($this->editingHolidayId);
+                $holiday->update([
+                    'date' => $formattedDate,
+                    'description' => $this->holidayDescription ?: 'Poya Day / Holiday',
+                    'is_blocked_for_cheque' => (bool)$this->isBlockedForCheque,
+                ]);
+
+                $message = 'Holiday / Poya day updated successfully.';
+            } else {
+                $exists = Holiday::where('date', $formattedDate)->exists();
+                if ($exists) {
+                    $this->addError('holidayDate', 'An entry already exists for this date.');
+                    return;
+                }
+
+                Holiday::create([
+                    'date' => $formattedDate,
+                    'description' => $this->holidayDescription ?: 'Poya Day / Holiday',
+                    'is_blocked_for_cheque' => (bool)$this->isBlockedForCheque,
+                    'created_by' => Auth::id(),
+                ]);
+
+                $message = 'Holiday / Poya day added successfully.';
+            }
+
+            $this->closeHolidayModal();
+            $this->loadHolidays();
+
+            $this->js("Swal.fire('Success!', '{$message}', 'success')");
+        } catch (\Exception $e) {
+            $this->js("Swal.fire('Error!', 'Failed to save: {$e->getMessage()}', 'error')");
+        }
+    }
+
+    public function confirmDeleteHoliday($id)
+    {
+        $this->deleteHolidayId = $id;
+        $this->dispatch('swal:confirm-delete-holiday', ['id' => $id]);
+    }
+
+    public function deleteHoliday($id = null)
+    {
+        try {
+            $deleteId = $id ?? $this->deleteHolidayId;
+            if (!$deleteId) {
+                return;
+            }
+
+            $holiday = Holiday::findOrFail($deleteId);
+            $holiday->delete();
+            $this->loadHolidays();
+            $this->deleteHolidayId = null;
+
+            $this->js("Swal.fire('Deleted!', 'Holiday entry removed successfully.', 'success')");
+        } catch (\Exception $e) {
+            $this->js("Swal.fire('Error!', 'Unable to delete holiday. Please try again.', 'error')");
         }
     }
 

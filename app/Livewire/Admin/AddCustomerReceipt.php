@@ -9,6 +9,7 @@ use App\Models\Customer;
 use App\Models\Sale;
 use App\Models\Payment;
 use App\Models\Cheque;
+use App\Models\Holiday;
 use App\Models\ReturnsProduct;
 use App\Livewire\Concerns\WithDynamicLayout;
 use App\Livewire\Concerns\HandlesChequeUploads;
@@ -127,6 +128,18 @@ class AddCustomerReceipt extends Component
         if (count($this->paymentRows) > 1) {
             unset($this->paymentRows[$index]);
             $this->paymentRows = array_values($this->paymentRows);
+        }
+    }
+
+    public function updatedPaymentRows($value, $nestedKey)
+    {
+        if (str_ends_with($nestedKey, '.cheque_date') && !empty($value)) {
+            if (Holiday::isHoliday($value)) {
+                $reason = Holiday::getHolidayReason($value);
+                $this->addError("paymentRows.{$nestedKey}", "Warning: {$value} is marked as a Holiday / Poya Day ({$reason}). Cheque realization is blocked on this date.");
+            } else {
+                $this->resetErrorBag("paymentRows.{$nestedKey}");
+            }
         }
     }
 
@@ -514,6 +527,21 @@ class AddCustomerReceipt extends Component
                 'message' => 'The sum of payment method amounts (Rs. ' . number_format($totalRowsAmount, 2) . ') must equal the Total Payment Amount (Rs. ' . number_format((float)$this->totalPaymentAmount, 2) . ').'
             ]);
             return;
+        }
+
+        // Validate against blocked holidays / poya days
+        foreach ($this->paymentRows as $index => $row) {
+            if ($row['method'] === 'cheque' && !empty($row['cheque_date'])) {
+                if (Holiday::isHoliday($row['cheque_date'])) {
+                    $reason = Holiday::getHolidayReason($row['cheque_date']);
+                    $this->addError("paymentRows.{$index}.cheque_date", "The selected date is marked as a Holiday / Poya Day ({$reason}).");
+                    $this->dispatch('show-toast', [
+                        'type' => 'error',
+                        'message' => "Cheque date ({$row['cheque_date']}) is a Holiday/Poya Day ({$reason}). Cheques cannot be accepted on this date."
+                    ]);
+                    return;
+                }
+            }
         }
 
         try {
