@@ -362,7 +362,7 @@ use App\Models\Sale;
                                                     Loading...
                                                 </span>
                                                 <span wire:loading.remove wire:target="printInvoice({{ $sale->id }})">
-                                                    <i class="bi bi-download text-success me-2"></i>
+                                                    <i class="bi bi-printer text-primary me-2"></i>
                                                     Print
                                                 </span>
                                             </button>
@@ -517,97 +517,93 @@ use App\Models\Sale;
                     </div>
 
 
-                    {{-- ==================== TOTALS (right-aligned) ==================== --}}
-                    <div class="row">
-                        <div class="col-7"></div>
-                        <div class="col-5">
-                            <table class="table table-sm table-bordered">
-                                <tbody>
-                                    <tr>
-                                        <td><strong>Subtotal</strong></td>
-                                        <td class="text-end">Rs.{{ number_format($selectedSale->subtotal, 2) }}</td>
-                                    </tr>
-                                    <tr>
-                                        <td><strong>Discount</strong></td>
-                                        <td class="text-end">- Rs.{{ number_format($selectedSale->discount_amount, 2) }}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-
-
-                    {{-- ==================== RETURNED ITEMS TABLE ==================== --}}
+                    {{-- ==================== RETURNED ITEMS TABLE (IF ANY) ==================== --}}
                     @if(isset($selectedSale->returns) && count($selectedSale->returns) > 0)
-                    <h6 class="text-muted mb-3 mt-4">RETURNED ITEMS</h6>
-                    <div class="table-responsive mb-4" style="min-height: 10px;">
-                        <table class="table table-bordered table-sm">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Product</th>
-                                    <th class="text-center">Code</th>
-                                    <th class="text-center">Return Qty</th>
-                                    <th class="text-end">Unit Price</th>
-                                    <th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @php $returnAmount = 0; @endphp
-                                @foreach($selectedSale->returns as $rIndex => $return)
-                                @php $returnAmount += $return->total_amount; @endphp
-                                <tr>
-                                    <td>{{ $rIndex + 1 }}</td>
-                                    <td>{{ $return->product?->name ?? '-' }}</td>
-                                    <td class="text-center">{{ $return->product?->code ?? '-' }}</td>
-                                    <td class="text-center">{{ $return->return_quantity }}</td>
-                                    <td class="text-end">Rs.{{ number_format($return->selling_price, 2) }}</td>
-                                    <td class="text-end">Rs.{{ number_format($return->total_amount, 2) }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                            <tfoot class="table-light">
-                                <tr>
-                                    <td colspan="5" class="text-end"><strong>Return Amount:</strong></td>
-                                    <td class="text-end">- Rs.@php echo number_format($returnAmount, 2); @endphp</td>
-                                </tr>
-                                <tr>
-                                    <td colspan="5" class="text-end"><strong>Net Amount:</strong></td>
-                                    <td class="text-end fw-bold">
-                                        Rs.@php echo number_format(($selectedSale->subtotal - $selectedSale->discount_amount) - $returnAmount, 2); @endphp
-                                    </td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                    </div>
-                    @endif
-
-                    {{-- ==================== GRAND TOTAL & DUE AMOUNT (Only show if NO returns) ====================
-                        --}}
-                    @if(!isset($selectedSale->returns) || count($selectedSale->returns) == 0)
-                    <div class="row">
-                        <div class="col-7"></div>
-                        <div class="col-5">
-                            <table class="table table-sm table-bordered">
+                    <div class="mb-3">
+                        <h6 class="text-danger fw-bold mb-2"><i class="bi bi-arrow-counterclockwise me-1"></i> RETURNED ITEMS</h6>
+                        <div class="table-responsive">
+                            <table class="table table-bordered table-sm">
+                                <thead class="table-danger">
+                                    <tr>
+                                        <th style="width: 30px;">#</th>
+                                        <th>Product</th>
+                                        <th class="text-center">Code</th>
+                                        <th class="text-center">Return Qty</th>
+                                        <th class="text-end">Unit Price</th>
+                                        <th class="text-end">Total</th>
+                                    </tr>
+                                </thead>
                                 <tbody>
+                                    @php $returnAmount = 0; @endphp
+                                    @foreach($selectedSale->returns as $rIndex => $return)
+                                    @php $returnAmount += $return->total_amount; @endphp
                                     <tr>
-                                        <td><strong>Grand Total</strong></td>
-                                        <td class="text-end">
-                                            <strong>Rs.{{ number_format($selectedSale->total_amount, 2) }}</strong>
-                                        </td>
+                                        <td>{{ $rIndex + 1 }}</td>
+                                        <td>{{ $return->product?->name ?? '-' }}</td>
+                                        <td class="text-center">{{ $return->product?->code ?? '-' }}</td>
+                                        <td class="text-center">{{ $return->return_quantity }}</td>
+                                        <td class="text-end">Rs. {{ number_format($return->selling_price, 2) }}</td>
+                                        <td class="text-end text-danger fw-bold">- Rs. {{ number_format($return->total_amount, 2) }}</td>
                                     </tr>
-                                    <tr>
-                                        <td><strong>Due Amount</strong></td>
-                                        <td class="text-end">
-                                            <strong>Rs.{{ number_format($selectedSale->due_amount, 2) }}</strong>
-                                        </td>
-                                    </tr>
+                                    @endforeach
                                 </tbody>
                             </table>
                         </div>
                     </div>
                     @endif
+
+                    {{-- ==================== TOTALS BOX (MATCHING PIC 3) ==================== --}}
+                    @php
+                        $dispDiscount = max(0, (float) ($selectedSale->discount_amount ?? 0));
+                        $returnItems = $selectedSale->returns ?? collect();
+                        $returnTotal = (float) $returnItems->sum('total_amount');
+                        $subTotal = (float) ($selectedSale->total_amount + $dispDiscount);
+                        $netTotal = max(0, (float) $selectedSale->total_amount - $returnTotal);
+                        $displayPaid = min($selectedSale->payments->sum('amount'), $netTotal);
+                        if ($displayPaid == 0 && ($selectedSale->due_amount ?? 0) < $netTotal) {
+                            $displayPaid = max(0, $netTotal - (float) ($selectedSale->due_amount ?? 0));
+                        }
+                        $displayBalance = max(0, $netTotal - $displayPaid);
+                    @endphp
+
+                    <div class="row justify-content-end mb-3">
+                        <div class="col-md-5 col-sm-7">
+                            <div style="border: 1.5px solid #16285A; border-radius: 6px; padding: 6px 12px; background: #ffffff;">
+                                <table class="table table-sm table-borderless mb-0" style="font-size: 13px;">
+                                    <tbody>
+                                        <tr>
+                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Sub Total</td>
+                                            <td class="text-end fw-bold" style="padding: 3px 0; color: #111827;">Rs. {{ number_format($subTotal, 2) }}</td>
+                                        </tr>
+                                        @if($dispDiscount > 0)
+                                        <tr>
+                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Discount</td>
+                                            <td class="text-end fw-bold text-danger" style="padding: 3px 0;">- Rs. {{ number_format($dispDiscount, 2) }}</td>
+                                        </tr>
+                                        @endif
+                                        @if($returnTotal > 0)
+                                        <tr>
+                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Returns</td>
+                                            <td class="text-end fw-bold text-danger" style="padding: 3px 0;">- Rs. {{ number_format($returnTotal, 2) }}</td>
+                                        </tr>
+                                        @endif
+                                        <tr>
+                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Net Total</td>
+                                            <td class="text-end fw-bold" style="padding: 3px 0; color: #111827;">Rs. {{ number_format($netTotal, 2) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Paid</td>
+                                            <td class="text-end fw-bold" style="padding: 3px 0; color: #111827;">Rs. {{ number_format($displayPaid, 2) }}</td>
+                                        </tr>
+                                        <tr style="border-top: 1px dashed #CBD5E1;">
+                                            <td style="color: #16285A; font-weight: 700; padding: 4px 0;">Balance Due</td>
+                                            <td class="text-end fw-bold text-danger" style="padding: 4px 0; font-size: 14px;">Rs. {{ number_format($displayBalance, 2) }}</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
 
                     @if($selectedSale->notes)
                     <h6 class="text-muted mb-2">NOTES</h6>
@@ -620,28 +616,7 @@ use App\Models\Sale;
 
                     {{-- Footer Note --}}
                     <div class="invoice-footer mt-4">
-                        <div class="row text-center mb-3">
-                            <div class="col-4">
-                                <p class=""><strong>.............................</strong></p>
-                                <p class="mb-2"><strong>Checked By</strong></p>
-                            </div>
-                            <div class="col-4">
-                                <p class=""><strong>.............................</strong></p>
-                                <p class="mb-2"><strong>Authorized Officer</strong></p>
-                            </div>
-                            <div class="col-4">
-                                <p class=""><strong>.............................</strong></p>
-                                <p class="mb-2"><strong>Customer Stamp</strong></p>
-                            </div>
-                        </div>
                         <div class="border-top pt-3">
-                            <p class="text-center mb-0"><strong>ADDRESS :</strong>
-                                {{ config('shop.address', 'N 122/1H, Kandy Road, Thihariya, Sri Lanka.') }}
-                            </p>
-                            <p class="text-center mb-0"><strong>TEL :</strong>
-                                {{ config('shop.phone', '+0332 290 295') }}, <strong>EMAIL :</strong> {{
-                                    config('shop.email', 'thihariyatilecenter@gmail.com') }}
-                            </p>
                             <p class="text-center" style="font-size: 11px;"><strong>Goods return will be accepted within
                                     14 days only.</strong></p>
                         </div>

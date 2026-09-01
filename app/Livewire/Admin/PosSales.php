@@ -86,6 +86,7 @@ class PosSales extends Component
             'customer',
             'items',
             'user',
+            'payments',
             'returns' => function ($q) {
                 $q->with('product');
             }
@@ -283,22 +284,31 @@ class PosSales extends Component
 
     public function printInvoice($saleId)
     {
-        $sale = \App\Models\Sale::with(['customer', 'items', 'payments', 'returns' => function ($q) {
+        $sale = Sale::with(['customer', 'items', 'payments', 'returns' => function ($q) {
             $q->with('product');
         }])->find($saleId);
+
         if (!$sale) {
             $this->dispatch('showToast', ['type' => 'error', 'message' => 'Sale not found.']);
             return;
         }
-        // Print the same saved-sale view currently open in the modal. This keeps
-        // all customer, item, return and payment details exactly in sync.
-        $this->selectedSale = $sale;
-        $this->js("setTimeout(() => window.print(), 150);");
+
+        // Store sale ID in session for print route
+        session(['print_sale_id' => $sale->id]);
+
+        // Open print page in new window
+        $printUrl = route('admin.print.sale', $sale->id);
+        $this->js("
+            const printWindow = window.open('$printUrl', '_blank', 'width=800,height=600');
+            if (printWindow) {
+                printWindow.focus();
+            }
+        ");
     }
 
-    public function downloadInvoice($saleId)
+    public function downloadInvoice($saleId, $paper = 'a5')
     {
-        $sale = Sale::with(['customer', 'user', 'items', 'payments', 'returns' => function ($q) {
+        $sale = Sale::with(['customer', 'user', 'items.product', 'payments', 'returns' => function ($q) {
             $q->with('product');
         }])->find($saleId);
 
@@ -308,13 +318,14 @@ class PosSales extends Component
         }
 
         try {
-            // Calculate paid amount for the invoice
-            $sale->paid_amount = $sale->total_amount - $sale->due_amount;
-            $sale->balance_amount = $sale->due_amount;
+            $paper = in_array(strtolower($paper), ['a4', 'a5']) ? strtolower($paper) : 'a5';
+            $pdf = PDF::loadView('admin.sales.invoice', compact('sale', 'paper'));
 
-            $pdf = PDF::loadView('admin.sales.invoice', compact('sale'));
-
-            $pdf->setPaper('a5', 'landscape');
+            if ($paper === 'a4') {
+                $pdf->setPaper('a4', 'portrait');
+            } else {
+                $pdf->setPaper('a5', 'landscape');
+            }
             $pdf->setOption('dpi', 96);
             $pdf->setOption('defaultFont', 'sans-serif');
 
@@ -322,7 +333,7 @@ class PosSales extends Component
                 function () use ($pdf) {
                     echo $pdf->output();
                 },
-                'invoice-' . $sale->invoice_number . '.pdf'
+                'invoice-' . $sale->invoice_number . ($paper === 'a4' ? '-a4' : '') . '.pdf'
             );
         } catch (\Exception $e) {
             $this->dispatch('showToast', ['type' => 'error', 'message' => 'Failed to generate PDF: ' . $e->getMessage()]);

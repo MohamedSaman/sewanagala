@@ -260,6 +260,7 @@ class StoreBilling extends Component
         foreach ($sale->items as $item) {
             $productStock = ProductStock::where('product_id', $item->product_id)->first();
             $editableStock = $productStock ? (int) $productStock->available_stock + (int) $item->quantity : (int) $item->quantity;
+            $prod = ProductDetail::find($item->product_id);
 
             $this->cart[] = [
                 'key' => uniqid('cart_'),
@@ -268,6 +269,7 @@ class StoreBilling extends Component
                 'name' => $item->product_name,
                 'code' => $item->product_code,
                 'model' => $item->product_model ?? '',
+                'site' => $prod->site ?? '',
                 'quantity' => $item->quantity,
                 'unit' => $item->unit ?? 'pcs',
                 'price' => $item->unit_price,
@@ -486,6 +488,7 @@ class StoreBilling extends Component
                 'name' => $product->name,
                 'code' => $product->code,
                 'model' => $product->model,
+                'site' => $product->site ?? '',
                 'price' => $product->price->selling_price ?? 0,
                 'stock' => $availableStock,
                 'sold' => $product->stock->sold_count ?? 0,
@@ -597,16 +600,16 @@ class StoreBilling extends Component
     public function getDueAmountProperty()
     {
         if ($this->paymentMethod === 'credit' || $this->paymentMethod === 'due') {
-            return $this->grandTotal;
+            return (float) $this->grandTotal;
         }
-        return max(0, $this->grandTotal - (int)$this->totalPaidAmount);
+        return max(0, (float) $this->grandTotal - (float) $this->totalPaidAmount);
     }
 
     public function getPaymentStatusProperty()
     {
-        if ($this->paymentMethod === 'credit' || $this->paymentMethod === 'due' || (int)$this->totalPaidAmount <= 0) {
+        if ($this->paymentMethod === 'credit' || $this->paymentMethod === 'due' || (float) $this->totalPaidAmount <= 0) {
             return 'pending';
-        } elseif ((int)$this->totalPaidAmount >= $this->grandTotal) {
+        } elseif ((float) $this->totalPaidAmount >= ((float) $this->grandTotal - 0.009)) {
             return 'paid';
         } else {
             return 'partial';
@@ -619,7 +622,7 @@ class StoreBilling extends Component
         if ($this->paymentMethod === 'credit' || $this->paymentMethod === 'due') {
             return 'partial';
         }
-        if ((int)$this->totalPaidAmount >= $this->grandTotal) {
+        if ((float) $this->totalPaidAmount >= ((float) $this->grandTotal - 0.009)) {
             return 'full';
         } else {
             return 'partial';
@@ -832,6 +835,7 @@ class StoreBilling extends Component
                         'name' => $product->name,
                         'code' => $product->code,
                         'model' => $product->model,
+                        'site' => $product->site ?? '',
                         'price' => $product->price->selling_price ?? 0,
                         'stock' => $product->stock->available_stock ?? 0,
                         'sold' => $product->stock->sold_count ?? 0,
@@ -947,14 +951,17 @@ class StoreBilling extends Component
             // Check if quantity spans multiple batch prices and split if needed
             $this->checkAndSplitCartByBatchPrices($product['id']);
         } else {
-            $discountPrice = ProductDetail::find($product['id'])->price->discount_price ?? 0;
+            $productDetail = ProductDetail::find($product['id']);
+            $discountPrice = $productDetail->price->discount_price ?? 0;
+            $siteValue = $product['site'] ?? ($productDetail->site ?? '');
 
             $newItem = [
                 'key' => uniqid('cart_'),  // Add unique key to maintain state
                 'id' => $product['id'],
                 'name' => $product['name'],
                 'code' => $product['code'],
-                'model' => $product['model'],
+                'model' => $product['model'] ?? '',
+                'site' => $siteValue,
                 'price' => $product['price'],
                 'quantity' => 1,
                 'discount' => $discountPrice,
@@ -1193,8 +1200,8 @@ class StoreBilling extends Component
             }
 
             $multiplePaidAmount = $this->getMultiplePaidAmount();
-            if (abs($multiplePaidAmount - (float) $this->grandTotal) > 0.009) {
-                $this->dispatch('toast', type: 'error', message: 'For Multiple Payment, cash + cheque total must exactly match the grand total (Rs. ' . number_format($this->grandTotal, 2) . '). Current total: Rs. ' . number_format($multiplePaidAmount, 2));
+            if ($multiplePaidAmount > (float) $this->grandTotal + 0.009) {
+                $this->dispatch('toast', type: 'error', message: 'For Multiple Payment, total paid amount (Rs. ' . number_format($multiplePaidAmount, 2) . ') cannot exceed the grand total (Rs. ' . number_format($this->grandTotal, 2) . ').');
                 return;
             }
         } elseif ($this->paymentMethod === 'cash') {
@@ -1241,6 +1248,7 @@ class StoreBilling extends Component
     public function confirmSaleWithDue()
     {
         $this->showPaymentConfirmModal = false;
+        $this->showPaymentModal = false;
         $this->createSale();
     }
 
@@ -1643,14 +1651,14 @@ class StoreBilling extends Component
     }
 
     // Download Invoice
-    public function downloadInvoice()
+    public function downloadInvoice($paper = 'a5')
     {
         if (!$this->lastSaleId) {
             $this->dispatch('toast', type: 'error', message: 'No sale found to download.');
             return;
         }
 
-        $sale = Sale::with(['customer', 'user', 'items', 'payments', 'returns' => function ($q) {
+        $sale = Sale::with(['customer', 'user', 'items.product', 'payments', 'returns' => function ($q) {
             $q->with('product');
         }])->find($this->lastSaleId);
 
@@ -1659,8 +1667,13 @@ class StoreBilling extends Component
             return;
         }
 
-        $pdf = PDF::loadView('admin.sales.invoice', compact('sale'));
-        $pdf->setPaper('a5', 'landscape');
+        $paper = in_array(strtolower($paper), ['a4', 'a5']) ? strtolower($paper) : 'a5';
+        $pdf = PDF::loadView('admin.sales.invoice', compact('sale', 'paper'));
+        if ($paper === 'a4') {
+            $pdf->setPaper('a4', 'portrait');
+        } else {
+            $pdf->setPaper('a5', 'landscape');
+        }
         $pdf->setOption('dpi', 96);
         $pdf->setOption('defaultFont', 'sans-serif');
 
@@ -1668,7 +1681,7 @@ class StoreBilling extends Component
             function () use ($pdf) {
                 echo $pdf->output();
             },
-            'invoice-' . $sale->invoice_number . '.pdf'
+            'invoice-' . $sale->invoice_number . ($paper === 'a4' ? '-a4' : '') . '.pdf'
         );
     }
 
@@ -2257,6 +2270,7 @@ class StoreBilling extends Component
                 'name' => $firstItem['name'],
                 'code' => $firstItem['code'],
                 'model' => $firstItem['model'],
+                'site' => $firstItem['site'] ?? '',
                 'price' => $price,
                 'quantity' => $qty,
                 'discount' => $firstItem['discount'],
@@ -2315,6 +2329,7 @@ class StoreBilling extends Component
             'name' => $service->name,
             'code' => $service->code ?: 'SERV',
             'model' => 'Service',
+            'site' => 'Service',
             'price' => $price,
             'quantity' => $qty,
             'discount' => 0,

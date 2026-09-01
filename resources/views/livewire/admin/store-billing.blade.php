@@ -673,6 +673,7 @@
                     <thead>
                         <tr>
                             <th class="pos-ct-th pos-ct-name">Item</th>
+                            <th class="pos-ct-th pos-ct-site">Site</th>
                             <th class="pos-ct-th pos-ct-qty">Qty</th>
                             <th class="pos-ct-th pos-ct-price">Price</th>
                             <th class="pos-ct-th pos-ct-disc">Disc.</th>
@@ -691,6 +692,11 @@
                                     <span>{{ Str::limit($item['name'], 24) }}</span>
                                 </div>
                                 <div class="pos-item-code">{{ $item['code'] }}</div>
+                            </td>
+                            <td class="pos-ct-td pos-ct-site">
+                                <span class="badge bg-light text-dark border px-2 py-1" style="font-size: 0.75rem; font-weight: 600;">
+                                    {{ !empty($item['site']) ? $item['site'] : '-' }}
+                                </span>
                             </td>
                             <td class="pos-ct-td pos-ct-qty">
                                 <div class="pos-qty-control">
@@ -1686,24 +1692,28 @@
         width: auto;
     }
 
+    .pos-ct-site {
+        width: 80px;
+    }
+
     .pos-ct-qty {
-        width: 100px;
+        width: 95px;
     }
 
     .pos-ct-price {
-        width: 100px;
+        width: 95px;
     }
 
     .pos-ct-disc {
-        width: 110px;
+        width: 100px;
     }
 
     .pos-ct-total {
-        width: 105px;
+        width: 100px;
     }
 
     .pos-ct-rm {
-        width: 32px;
+        width: 30px;
     }
 
     /* Header cells */
@@ -1723,6 +1733,7 @@
         padding-left: 2px;
     }
 
+    .pos-ct-th.pos-ct-site,
     .pos-ct-th.pos-ct-qty {
         text-align: center;
     }
