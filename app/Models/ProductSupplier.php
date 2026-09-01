@@ -10,10 +10,11 @@ class ProductSupplier extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'businessname', 'contact', 'address', 'email', 'phone', 'status', 'notes', 'overpayment'];
+    protected $fillable = ['name', 'businessname', 'contact', 'address', 'email', 'phone', 'status', 'notes', 'overpayment', 'balance_total'];
 
     protected $casts = [
         'overpayment' => 'decimal:2',
+        'balance_total' => 'decimal:2',
     ];
 
     public function detail()
@@ -56,4 +57,16 @@ class ProductSupplier extends Model
     {
         return $this->overpayment ?? 0;
     }
+
+    /**
+     * Get total balance due from purchase orders
+     */
+    public function getBalanceTotalAttribute()
+    {
+        if (array_key_exists('balance_total', $this->attributes)) {
+            return (float) $this->attributes['balance_total'];
+        }
+        return (float) $this->orders()->sum('due_amount');
+    }
 }
+

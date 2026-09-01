@@ -48,6 +48,7 @@
                                 <th>Business Name</th>
                                 <th>Contact</th>
                                 <th>Email</th>
+                                <th class="text-end">Balance Total</th>
                                 <th class="text-end pe-4">Actions</th>
                             </tr>
                         </thead>
@@ -61,6 +62,12 @@
                                 <td>{{ $supplier->businessname }}</td>
                                 <td>{{ $supplier->contact }}</td>
                                 <td>{{ $supplier->email }}</td>
+                                @php
+                                $totalBalance = (float) $supplier->balance_total + (float) ($supplier->orders_sum_due_amount ?? 0);
+                                @endphp
+                                <td class="text-end fw-semibold {{ $totalBalance > 0 ? 'text-danger' : 'text-success' }}">
+                                    Rs. {{ number_format($totalBalance, 2) }}
+                                </td>
                                 <td class="text-end pe-2">
                                     <div class="dropdown">
                                         <button class="btn btn-outline-secondary dropdown-toggle"
@@ -124,7 +131,7 @@
                             </tr>
                             @empty
                             <tr>
-                                <td colspan="6" class="text-center text-muted">No suppliers found.</td>
+                                <td colspan="7" class="text-center text-muted">No suppliers found.</td>
                             </tr>
                             @endforelse
                         </tbody>
@@ -210,6 +217,16 @@
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
                         </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Balance Total</label>
+                                <input type="number" step="0.01" min="0" class="form-control @error('balanceTotal') is-invalid @enderror" wire:model.blur="balanceTotal" placeholder="0.00">
+                                @error('balanceTotal')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Previous balance owed before using this system.</small>
+                            </div>
+                        </div>
                         <div class="mb-4">
                             <label class="form-label fw-semibold">Notes</label>
                             <textarea class="form-control @error('notes') is-invalid @enderror" wire:model.blur="notes" rows="2" placeholder="Additional notes (optional)"></textarea>
@@ -272,6 +289,14 @@
                                 <span class="badge bg-{{ $status === 'active' ? 'success' : 'secondary' }}">
                                     {{ ucfirst($status) }}
                                 </span>
+                            </p>
+                        </div>
+                    </div>
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-6">
+                            <label class="form-label fw-semibold text-muted">Balance Total</label>
+                            <p class="form-control-plaintext fw-bold {{ $balanceTotal > 0 ? 'text-danger' : 'text-success' }}">
+                                Rs. {{ number_format((float) $balanceTotal, 2) }}
                             </p>
                         </div>
                     </div>
@@ -364,6 +389,16 @@
                             @error('address')
                             <div class="invalid-feedback d-block">{{ $message }}</div>
                             @enderror
+                        </div>
+                        <div class="row g-3 mb-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label fw-semibold">Balance Total</label>
+                                <input type="number" step="0.01" min="0" class="form-control @error('balanceTotal') is-invalid @enderror" wire:model.blur="balanceTotal" placeholder="0.00">
+                                @error('balanceTotal')
+                                <div class="invalid-feedback d-block">{{ $message }}</div>
+                                @enderror
+                                <small class="text-muted">Previous balance owed before using this system.</small>
+                            </div>
                         </div>
                         <div class="mb-4">
                             <label class="form-label fw-semibold">Notes</label>

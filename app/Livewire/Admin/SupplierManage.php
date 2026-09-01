@@ -26,6 +26,7 @@ class SupplierManage extends Component
     public $phone;
     public $status = 'active';
     public $notes;
+    public $balanceTotal = 0;
 
     public $showCreateModal = false;
     public $showEditModal = false;
@@ -41,6 +42,7 @@ class SupplierManage extends Component
         'phone' => 'nullable|string|max:10',
         'status' => 'required|in:active,inactive',
         'notes' => 'nullable|string|max:500',
+        'balanceTotal' => 'nullable|numeric|min:0',
     ];
 
     protected $messages = [
@@ -61,6 +63,8 @@ class SupplierManage extends Component
         'status.in' => 'The selected status is invalid.',
         'notes.string' => 'The notes must be a valid string.',
         'notes.max' => 'The notes may not be greater than 500 characters.',
+        'balanceTotal.numeric' => 'The balance total must be a valid number.',
+        'balanceTotal.min' => 'The balance total cannot be negative.',
     ];
 
     // -------------------- CREATE MODAL --------------------
@@ -84,6 +88,7 @@ class SupplierManage extends Component
             'phone' => $this->phone,
             'status' => $this->status,
             'notes' => $this->notes,
+            'balance_total' => $this->balanceTotal ?: 0,
         ]);
 
         $this->resetForm();
@@ -96,7 +101,7 @@ class SupplierManage extends Component
     // -------------------- VIEW --------------------
     public function view($id)
     {
-        $supplier = ProductSupplier::findOrFail($id);
+        $supplier = ProductSupplier::withSum('orders as orders_sum_due_amount', 'due_amount')->findOrFail($id);
 
         $this->supplierId = $supplier->id;
         $this->name = $supplier->name;
@@ -107,6 +112,7 @@ class SupplierManage extends Component
         $this->phone = $supplier->phone;
         $this->status = $supplier->status;
         $this->notes = $supplier->notes;
+        $this->balanceTotal = (float) $supplier->balance_total + (float) ($supplier->orders_sum_due_amount ?? 0);
 
         $this->showViewModal = true;
     }
@@ -125,6 +131,7 @@ class SupplierManage extends Component
         $this->phone = $supplier->phone;
         $this->status = $supplier->status;
         $this->notes = $supplier->notes;
+        $this->balanceTotal = (float) ($supplier->balance_total ?? 0);
 
         $this->showEditModal = true;
     }
@@ -150,6 +157,7 @@ class SupplierManage extends Component
             'phone' => $this->phone,
             'status' => $this->status,
             'notes' => $this->notes,
+            'balance_total' => $this->balanceTotal ?: 0,
         ]);
 
         $this->resetForm();
@@ -197,7 +205,7 @@ class SupplierManage extends Component
 
     public function resetForm()
     {
-        $this->reset(['supplierId', 'name', 'businessname', 'contact', 'address', 'email', 'phone', 'status', 'notes']);
+        $this->reset(['supplierId', 'name', 'businessname', 'contact', 'address', 'email', 'phone', 'status', 'notes', 'balanceTotal']);
         $this->status = 'active';
         $this->resetValidation();
     }
@@ -208,7 +216,7 @@ class SupplierManage extends Component
 
     public function render()
     {
-        $query = ProductSupplier::latest();
+        $query = ProductSupplier::withSum('orders as orders_sum_due_amount', 'due_amount')->latest();
 
         if ($this->perPage === 'all') {
             $totalRows = (clone $query)->count();

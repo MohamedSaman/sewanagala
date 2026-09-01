@@ -129,9 +129,9 @@ class AddSupplierReceipt extends Component
     {
         $this->selectedSupplier = ProductSupplier::find($supplierId);
         $this->loadSupplierOrders();
-        $this->selectedOrders = [];
+        $this->selectedOrders = collect($this->supplierOrders)->pluck('id')->toArray();
+        $this->calculateTotalDue();
         $this->totalPaymentAmount = '';
-        $this->totalDueAmount = 0;
         $this->initializeAllocations();
         
         // Load supplier overpayment
@@ -184,26 +184,29 @@ class AddSupplierReceipt extends Component
     public function selectAllOrders()
     {
         $this->selectedOrders = collect($this->supplierOrders)->pluck('id')->toArray();
-    $this->calculateTotalDue();
-    $this->totalPaymentAmount = '';
-    $this->remainingAmount = $this->totalDueAmount;
-    $this->initializeAllocations();
+        $this->calculateTotalDue();
+        $this->totalPaymentAmount = '';
+        $this->remainingAmount = $this->totalDueAmount;
+        $this->initializeAllocations();
     }
 
     public function clearOrderSelection()
     {
         $this->selectedOrders = [];
-        $this->totalDueAmount = 0;
+        $this->calculateTotalDue();
         $this->totalPaymentAmount = '';
-        $this->remainingAmount = 0;
+        $this->remainingAmount = $this->totalDueAmount;
         $this->allocations = [];
     }
 
     private function calculateTotalDue()
     {
-        $this->totalDueAmount = collect($this->supplierOrders)
+        $ordersDue = collect($this->supplierOrders)
             ->whereIn('id', $this->selectedOrders)
             ->sum('due_amount');
+        
+        $supplierBalance = (float) ($this->selectedSupplier?->balance_total ?? 0);
+        $this->totalDueAmount = $supplierBalance + $ordersDue;
         $this->remainingAmount = $this->totalDueAmount;
         
         // Reset overpayment application when orders change
@@ -297,7 +300,7 @@ class AddSupplierReceipt extends Component
 
     public function openPaymentModal()
     {
-        if (empty($this->selectedOrders)) {
+        if (empty($this->selectedOrders) && (float)($this->selectedSupplier?->balance_total ?? 0) <= 0) {
             $this->dispatch('show-toast', [
                 'type' => 'error',
                 'message' => 'Please select at least one order to make a payment.'
@@ -401,9 +404,10 @@ class AddSupplierReceipt extends Component
             return;
         }
 
-        $hasAllocation = collect($this->allocations)->sum('payment_amount') > 0;
+        $paidToOrders = collect($this->allocations)->sum('payment_amount');
+        $hasAllocation = $paidToOrders > 0 || (float)$this->totalPaymentAmount > 0 || (float)$this->overpaymentToApply > 0;
         if (!$hasAllocation) {
-            $this->dispatch('show-toast', ['type' => 'error', 'message' => 'No payment allocated to any order.']);
+            $this->dispatch('show-toast', ['type' => 'error', 'message' => 'Please enter a valid payment amount.']);
             return;
         }
 
@@ -489,8 +493,10 @@ class AddSupplierReceipt extends Component
                 ]);
             }
 
+            $paidToOrders = 0;
             foreach ($this->allocations as $orderId => $allocation) {
                 if ($allocation['payment_amount'] > 0) {
+                    $paidToOrders += $allocation['payment_amount'];
                     PurchasePaymentAllocation::create([
                         'purchase_payment_id' => $payment->id,
                         'purchase_order_id' => $orderId,
@@ -504,6 +510,14 @@ class AddSupplierReceipt extends Component
                         $order->save();
                     }
                 }
+            }
+
+            // Deduct remainder from supplier balance_total if any payment went towards opening/balance total
+            $paidToBalance = $totalPaymentWithOverpayment - $paidToOrders;
+            if ($paidToBalance > 0 && $this->selectedSupplier) {
+                $newBalance = max(0, (float)$this->selectedSupplier->balance_total - $paidToBalance);
+                $this->selectedSupplier->balance_total = $newBalance;
+                $this->selectedSupplier->save();
             }
 
             // Deduct overpayment from supplier if used
@@ -579,11 +593,19 @@ class AddSupplierReceipt extends Component
         return ProductSupplier::with(['orders' => function ($query) {
             $query->where('due_amount', '>', 0);
         }])
-            ->whereHas('orders', function ($query) {
-                $query->where('due_amount', '>', 0);
+            ->where(function ($query) {
+                $query->where('balance_total', '>', 0)
+                      ->orWhereHas('orders', function ($q) {
+                          $q->where('due_amount', '>', 0);
+                      });
             })
             ->when($this->search, function ($query) {
-                $query->where('name', 'like', "%{$this->search}%");
+                $query->where(function ($q) {
+                    $q->where('name', 'like', "%{$this->search}%")
+                      ->orWhere('phone', 'like', "%{$this->search}%")
+                      ->orWhere('email', 'like', "%{$this->search}%")
+                      ->orWhere('businessname', 'like', "%{$this->search}%");
+                });
             })
             ->orderBy('name')
             ->paginate(10);

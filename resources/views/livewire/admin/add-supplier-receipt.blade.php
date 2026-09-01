@@ -224,6 +224,25 @@
                                 </tr>
                                 @endif
                                 @endforeach
+                                @php
+                                $allocatedToOrders = collect($allocations)->sum('payment_amount');
+                                $balancePayment = ((float)$totalPaymentAmount + (float)$overpaymentToApply) - $allocatedToOrders;
+                                @endphp
+                                @if($balancePayment > 0)
+                                <tr>
+                                    <td class="fw-bold text-primary"><i class="bi bi-wallet2 me-1"></i> Balance Total / Opening Balance</td>
+                                    <td class="text-end">Rs.{{ number_format((float)($selectedSupplier->balance_total ?? 0), 2) }}</td>
+                                    <td class="text-end text-success fw-bold">Rs.{{ number_format($balancePayment, 2) }}</td>
+                                    <td class="text-end text-danger">Rs.{{ number_format(max(0, (float)($selectedSupplier->balance_total ?? 0) - $balancePayment), 2) }}</td>
+                                    <td>
+                                        @if(((float)($selectedSupplier->balance_total ?? 0) - $balancePayment) <= 0)
+                                            <span class="badge bg-success">Complete</span>
+                                        @else
+                                            <span class="badge bg-warning text-dark">Partial Paid</span>
+                                        @endif
+                                    </td>
+                                </tr>
+                                @endif
                             </tbody>
                         </table>
                     </div>
@@ -496,6 +515,13 @@
                                     </td>
                                 </tr>
                                 @endforeach
+                                @if($lastPayment->allocations->isEmpty())
+                                <tr>
+                                    <td class="fw-bold text-primary"><i class="bi bi-wallet2 me-1"></i> Balance Total / Opening Balance Payment</td>
+                                    <td class="text-end text-success">Rs.{{ number_format($lastPayment->amount + ($lastPayment->overpayment_used ?? 0), 2) }}</td>
+                                    <td><span class="badge bg-success">Paid</span></td>
+                                </tr>
+                                @endif
                             </tbody>
                             <tfoot class="table-light">
                                 @if($lastPayment->overpayment_used > 0)
@@ -641,8 +667,7 @@
                             @forelse($suppliers as $supplier)
                             @php
                             $dueOrders = $supplier->orders->count();
-                            // due_amount already has returns deducted, just sum it
-                            $totalDue = $supplier->orders->sum('due_amount');
+                            $totalDue = (float) $supplier->balance_total + (float) $supplier->orders->sum('due_amount');
                             @endphp
                             <tr wire:key="supplier-{{ $supplier->id }}">
                                 <td class="ps-4 fw-semibold">{{ $supplier->name }}</td>
@@ -685,10 +710,20 @@
         @endif
 
         {{-- Due Orders and Payment Allocation --}}
-        @if($selectedSupplier && count($supplierOrders) > 0)
+        @if($selectedSupplier && (count($supplierOrders) > 0 || (float)($selectedSupplier->balance_total ?? 0) > 0))
         <div class="row">
             {{-- Due Orders List --}}
             <div class="col-lg-8">
+                @if((float)($selectedSupplier->balance_total ?? 0) > 0)
+                <div class="alert alert-warning mb-4 shadow-sm border-0 d-flex justify-content-between align-items-center">
+                    <div>
+                        <h6 class="fw-bold mb-1 text-dark"><i class="bi bi-wallet2 text-warning me-2"></i> Balance Total / Opening Balance</h6>
+                        <span class="text-muted small">Initial balance owed to {{ $selectedSupplier->name }}</span>
+                    </div>
+                    <span class="fs-4 fw-bold text-danger">Rs.{{ number_format((float)$selectedSupplier->balance_total, 2) }}</span>
+                </div>
+                @endif
+                @if(count($supplierOrders) > 0)
                 <div class="card mb-4">
                     <div class="card-header bg-warning text-white d-flex justify-content-between align-items-center">
                         <h5 class="fw-bold mb-0">
@@ -786,6 +821,7 @@
                         @endif
                     </div>
                 </div>
+                @endif
             </div>
 
             {{-- Payment Allocation --}}
@@ -797,15 +833,19 @@
                         </h5>
                     </div>
                     <div class="card-body">
-                        @if(count($selectedOrders) > 0)
+                        @if(count($selectedOrders) > 0 || $totalDueAmount > 0)
                             <div class="alert alert-info mb-4">
                                 <div class="d-flex justify-content-between align-items-center">
-                                    <span>Total Due (Selected)</span>
+                                    <span>Total Due</span>
                                     <span class="fw-bold text-danger">Rs.{{ number_format($totalDueAmount, 2) }}</span>
                                 </div>
                                 <small class="text-muted d-block mt-2">
                                     <i class="bi bi-info-circle me-1"></i>
-                                    {{ count($selectedOrders) }} order(s) selected for payment
+                                    @if(count($selectedOrders) > 0)
+                                    {{ count($selectedOrders) }} order(s) selected
+                                    @else
+                                    Supplier Balance Payment
+                                    @endif
                                 </small>
                             </div>
 
