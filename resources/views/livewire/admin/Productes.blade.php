@@ -912,11 +912,18 @@
                                                             '-' }}</span>
                                                     </div>
                                                 </div>
-                                                <div class="col-md-12">
+                                                <div class="col-md-6">
                                                     <div class="info-item p-3 bg-light rounded-3">
                                                         <small class="text-muted d-block mb-1">Category</small>
                                                         <span class="fw-semibold text-dark">{{ $viewProduct->category ??
                                                             '-' }}</span>
+                                                    </div>
+                                                </div>
+                                                <div class="col-md-6">
+                                                    <div class="info-item p-3 bg-light rounded-3">
+                                                        <small class="text-muted d-block mb-1">Site</small>
+                                                        <span class="fw-semibold text-dark">{{ $viewProduct->site ??
+                                                            'Store' }}</span>
                                                     </div>
                                                 </div>
                                             </div>
@@ -1115,8 +1122,13 @@
                                 <div class="row">
                                     <div class="col-md-4">
                                         <div class="mb-3">
-                                            <label for="code" class="form-label fw-semibold">Code:</label>
-                                            <input type="text" class="form-control" id="code" wire:model="code">
+                                            <label for="code" class="form-label fw-semibold">Code: <small class="text-muted fw-normal">(Auto-generated)</small></label>
+                                            <div class="input-group">
+                                                <input type="text" class="form-control" id="code" wire:model="code" placeholder="e.g. SE2633">
+                                                <button class="btn btn-outline-secondary" type="button" wire:click="$set('code', '{{ $this->generateNextProductCode() }}')" title="Regenerate Next Code">
+                                                    <i class="bi bi-arrow-clockwise"></i>
+                                                </button>
+                                            </div>
                                             @error('code')
                                             <span class="text-danger small">* {{ $message }}</span>
                                             @enderror
@@ -1152,7 +1164,7 @@
                             </div>
                             <div class="card-body p-4">
                                 <div class="row">
-                                    <div class="col-md-4">
+                                    <div class="col-md-6 col-lg-3">
                                         <div class="mb-3">
                                             <label for="brand" class="form-label fw-semibold">Brand:</label>
                                             <select class="form-select" id="brand" wire:model="brand">
@@ -1170,7 +1182,7 @@
                                             @enderror
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6 col-lg-3">
                                         <div class="mb-3">
                                             <label for="category" class="form-label fw-semibold">Category:</label>
                                             <select class="form-select" id="category" wire:model="category">
@@ -1188,7 +1200,7 @@
                                             @enderror
                                         </div>
                                     </div>
-                                    <div class="col-md-4">
+                                    <div class="col-md-6 col-lg-3">
                                         <div class="mb-3">
                                             <label for="supplier" class="form-label fw-semibold">Supplier:</label>
                                             <select class="form-select" id="supplier" wire:model="supplier">
@@ -1202,6 +1214,20 @@
                                                 @endforeach
                                             </select>
                                             @error('supplier')
+                                            <span class="text-danger small">* {{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                    <div class="col-md-6 col-lg-3">
+                                        <div class="mb-3">
+                                            <label for="site" class="form-label fw-semibold">Site Name:</label>
+                                            <input type="text" list="createSiteList" class="form-control" id="site" wire:model="site" placeholder="e.g. Store">
+                                            <datalist id="createSiteList">
+                                                @foreach($sites as $siteOption)
+                                                <option value="{{ $siteOption }}">{{ $siteOption }}</option>
+                                                @endforeach
+                                            </datalist>
+                                            @error('site')
                                             <span class="text-danger small">* {{ $message }}</span>
                                             @enderror
                                         </div>
@@ -1493,8 +1519,8 @@
                                 <div class="row">
                                     <div class="col-md-4">
                                         <div class="mb-3">
-                                            <label for="editCode" class="form-label fw-semibold">Code:</label>
-                                            <input type="text" class="form-control" id="editCode" wire:model="editCode">
+                                            <label for="editCode" class="form-label fw-semibold">Code: <small class="text-muted fw-normal">(Read-only)</small></label>
+                                            <input type="text" class="form-control bg-light" id="editCode" wire:model="editCode" disabled readonly>
                                             @error('editCode')
                                             <span class="text-danger small">* {{ $message }}</span>
                                             @enderror
@@ -1559,6 +1585,20 @@
                                                 @endforeach
                                             </select>
                                             @error('editBrand')
+                                            <span class="text-danger small">* {{ $message }}</span>
+                                            @enderror
+                                        </div>
+                                    </div>
+                                    <div class="col-md-4">
+                                        <div class="mb-3">
+                                            <label for="editSite" class="form-label fw-semibold">Site Name:</label>
+                                            <input type="text" list="editSiteList" class="form-control" id="editSite" wire:model="editSite" placeholder="e.g. Store">
+                                            <datalist id="editSiteList">
+                                                @foreach($sites as $siteOption)
+                                                <option value="{{ $siteOption }}">{{ $siteOption }}</option>
+                                                @endforeach
+                                            </datalist>
+                                            @error('editSite')
                                             <span class="text-danger small">* {{ $message }}</span>
                                             @enderror
                                         </div>

@@ -51,7 +51,7 @@ class Products extends Component
     // Edit form fields
     public $editId, $editCode, $editName, $editModel, $editBrand, $editCategory, $editImage, $existingImage,
         $editDescription, $editBarcode, $editStatus, $editSupplierPrice, $editSellingPrice,
-        $editDiscountPrice, $editDamageStock;
+        $editDiscountPrice, $editDamageStock, $editSite = '';
 
     // Stock Adjustment fields
     public $adjustmentProductId, $adjustmentProductName, $adjustmentAvailableStock, $adjustmentDamageStock,
@@ -72,6 +72,52 @@ class Products extends Component
     {
         $this->setDefaultIds();
         $this->setDefaultValues();
+    }
+
+    /**
+     * Generate next product code based on last added product code (+1).
+     */
+    public function generateNextProductCode(): string
+    {
+        $lastProduct = ProductDetail::whereNotNull('code')
+            ->where('code', '!=', '')
+            ->orderBy('id', 'desc')
+            ->first();
+
+        if (!$lastProduct || empty($lastProduct->code)) {
+            return 'SE0001';
+        }
+
+        $lastCode = trim($lastProduct->code);
+
+        // Match prefix and trailing numeric digits (e.g. SE2632 => SE and 2632)
+        if (preg_match('/^(.*?)(\d+)$/', $lastCode, $matches)) {
+            $prefix = $matches[1];
+            $numStr = $matches[2];
+            $digitCount = strlen($numStr);
+            $nextNum = (int)$numStr + 1;
+
+            $newCode = $prefix . str_pad((string)$nextNum, $digitCount, '0', STR_PAD_LEFT);
+
+            // Ensure uniqueness in case of collision
+            while (ProductDetail::where('code', $newCode)->exists()) {
+                $nextNum++;
+                $newCode = $prefix . str_pad((string)$nextNum, $digitCount, '0', STR_PAD_LEFT);
+            }
+
+            return $newCode;
+        }
+
+        // Fallback if no numeric ending found
+        $prefix = 'SE';
+        $nextNum = ProductDetail::count() + 1;
+        $newCode = $prefix . str_pad((string)$nextNum, 4, '0', STR_PAD_LEFT);
+        while (ProductDetail::where('code', $newCode)->exists()) {
+            $nextNum++;
+            $newCode = $prefix . str_pad((string)$nextNum, 4, '0', STR_PAD_LEFT);
+        }
+
+        return $newCode;
     }
 
     /**
@@ -143,6 +189,12 @@ class Products extends Component
 
         // Set default status
         $this->status = 'active';
+
+        // Set default site
+        $this->site = 'Store';
+
+        // Set auto-generated product code
+        $this->code = $this->generateNextProductCode();
 
         // Set default stock values
         $this->available_stock = 0;
@@ -537,7 +589,9 @@ class Products extends Component
             'selling_price',
             'discount_price',
             'available_stock',
-            'damage_stock', 'site'
+            'damage_stock',
+            'site',
+            'editSite',
         ]);
         $this->resetValidation();
     }
@@ -553,6 +607,7 @@ class Products extends Component
         $this->editModel = $product->model;
         $this->editBrand = $product->brand_id;
         $this->editCategory = $product->category_id;
+        $this->editSite = $product->site ?? 'Store';
         $this->existingImage = $product->image;
         $this->editDescription = $product->description;
         $this->editBarcode = $product->barcode;
@@ -577,10 +632,10 @@ class Products extends Component
     {
         return [
             'editName' => 'required|string|max:255',
-            'editCode' => 'required|string|max:100|unique:product_details,code,' . $this->editId,
             'editModel' => 'nullable|string|max:255',
             'editBrand' => 'required|exists:brand_lists,id',
             'editCategory' => 'required|exists:category_lists,id',
+            'editSite' => 'nullable|string|max:100',
             'editImage' => 'nullable|image|mimes:jpeg,png,jpg,gif,webp|max:2048',
             'editDescription' => 'nullable|string|max:1000',
             'editBarcode' => 'nullable|string|max:255|unique:product_details,barcode,' . $this->editId,
@@ -609,11 +664,11 @@ class Products extends Component
             }
 
             $product->update([
-                'code' => $this->editCode,
                 'name' => $this->editName,
                 'model' => $this->editModel,
                 'brand_id' => $this->editBrand,
                 'category_id' => $this->editCategory,
+                'site' => $this->editSite ?: 'Store',
                 'image' => $imagePath,
                 'description' => $this->editDescription,
                 'barcode' => $this->editBarcode,
