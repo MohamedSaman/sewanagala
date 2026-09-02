@@ -125,19 +125,29 @@
             <div class="receipt-title">PAYMENT RECEIPT</div>
         </div>
 
+        @php
+            $isGrouped = isset($payments) && $payments instanceof \Illuminate\Support\Collection;
+            $paymentList = $isGrouped ? $payments : collect([$payment]);
+            $totalAmountPaid = $paymentList->sum('amount');
+            $allAllocations = $paymentList->pluck('allocations')->flatten();
+            $paymentMethods = $paymentList->pluck('payment_method')->unique()->map(function($m) {
+                return strtoupper(str_replace('_', ' ', $m));
+            })->join(', ');
+        @endphp
+
         {{-- Receipt Information --}}
         <div class="receipt-info">
             <table class="table table-bordered">
                 <tr>
                     <td width="50%">
-                        <strong>Receipt #:</strong> {{ $payment->id }}<br>
-                        <strong>Payment Date:</strong> {{ \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') }}<br>
+                        <strong>Receipt #:</strong> {{ $payment->payment_reference ?: $payment->id }}<br>
+                        <strong>Payment Date:</strong> {{ $payment->payment_date ? \Carbon\Carbon::parse($payment->payment_date)->format('d/m/Y') : '-' }}<br>
                         <strong>Generated On:</strong> {{ now()->format('d/m/Y H:i') }}
                     </td>
                     <td width="50%">
-                        <strong>Payment Method:</strong> {{ strtoupper($payment->payment_method) }}<br>
+                        <strong>Payment Method:</strong> {{ $paymentMethods }}<br>
                         <strong>Status:</strong>
-                        <span class="status-{{ $payment->status }}">{{ strtoupper($payment->status) }}</span><br>
+                        <span class="status-{{ $payment->status }}">{{ strtoupper($payment->status ?? 'PAID') }}</span><br>
                         @if($payment->payment_reference)
                         <strong>Reference:</strong> {{ $payment->payment_reference }}
                         @endif
@@ -152,11 +162,11 @@
             <table class="table table-bordered">
                 <tr>
                     <td width="30%"><strong>Name:</strong></td>
-                    <td>{{ $payment->supplier->name }}</td>
+                    <td>{{ $payment->supplier->name ?? 'N/A' }}</td>
                 </tr>
                 <tr>
                     <td><strong>Mobile:</strong></td>
-                    <td>{{ $payment->supplier->mobile }}</td>
+                    <td>{{ $payment->supplier->mobile ?? 'N/A' }}</td>
                 </tr>
                 <tr>
                     <td><strong>Email:</strong></td>
@@ -175,36 +185,38 @@
             <table class="table table-bordered">
                 <tr>
                     <td width="30%"><strong>Total Amount Paid:</strong></td>
-                    <td class="text-right"><strong>Rs. {{ number_format($payment->amount, 2) }}</strong></td>
+                    <td class="text-right"><strong>Rs. {{ number_format($totalAmountPaid, 2) }}</strong></td>
                 </tr>
-                @if($payment->payment_method === 'cheque')
-                <tr>
-                    <td><strong>Cheque Number:</strong></td>
-                    <td>{{ $payment->cheque_number }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Bank Name:</strong></td>
-                    <td>{{ $payment->bank_name }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Cheque Date:</strong></td>
-                    <td>{{ $payment->cheque_date ? \Carbon\Carbon::parse($payment->cheque_date)->format('d/m/Y') : 'N/A' }}</td>
-                </tr>
-                @endif
-                @if($payment->payment_method === 'bank_transfer')
-                <tr>
-                    <td><strong>Bank Name:</strong></td>
-                    <td>{{ $payment->bank_name }}</td>
-                </tr>
-                <tr>
-                    <td><strong>Transaction Ref:</strong></td>
-                    <td>{{ $payment->bank_transaction }}</td>
-                </tr>
-                @endif
+                @foreach($paymentList as $p)
+                    @if($p->payment_method === 'cheque')
+                    <tr>
+                        <td><strong>Cheque (Rs. {{ number_format($p->amount, 2) }}):</strong></td>
+                        <td>
+                            <div><strong>Cheque No:</strong> {{ $p->cheque_number ?? '-' }}</div>
+                            <div><strong>Bank:</strong> {{ $p->bank_name ?? '-' }}</div>
+                            <div><strong>Date:</strong> {{ $p->cheque_date ? \Carbon\Carbon::parse($p->cheque_date)->format('d/m/Y') : 'N/A' }}</div>
+                        </td>
+                    </tr>
+                    @elseif($p->payment_method === 'bank_transfer')
+                    <tr>
+                        <td><strong>Bank Transfer (Rs. {{ number_format($p->amount, 2) }}):</strong></td>
+                        <td>
+                            <div><strong>Bank:</strong> {{ $p->bank_name ?? '-' }}</div>
+                            <div><strong>Transaction Ref:</strong> {{ $p->bank_transaction ?? '-' }}</div>
+                        </td>
+                    </tr>
+                    @elseif($p->payment_method === 'cash' && $paymentList->count() > 1)
+                    <tr>
+                        <td><strong>Cash:</strong></td>
+                        <td>Rs. {{ number_format($p->amount, 2) }}</td>
+                    </tr>
+                    @endif
+                @endforeach
             </table>
         </div>
 
         {{-- Payment Allocation --}}
+        @if($allAllocations && count($allAllocations) > 0)
         <div class="section">
             <div class="section-title">PAYMENT ALLOCATION</div>
             <table class="table table-bordered">
@@ -218,15 +230,15 @@
                     </tr>
                 </thead>
                 <tbody>
-                    @foreach($payment->allocations as $allocation)
+                    @foreach($allAllocations as $allocation)
                     @php
                     $order = $allocation->order;
-                    $remaining = $order->due_amount;
+                    $remaining = $order ? $order->due_amount : 0;
                     $paidAmount = $allocation->allocated_amount;
                     @endphp
                     <tr>
-                        <td><strong>{{ $order->order_code }}</strong></td>
-                        <td class="text-right">Rs. {{ number_format($order->due_amount + $paidAmount, 2) }}</td>
+                        <td><strong>{{ $order ? $order->order_code : 'N/A' }}</strong></td>
+                        <td class="text-right">Rs. {{ number_format(($order ? $order->due_amount : 0) + $paidAmount, 2) }}</td>
                         <td class="text-right">Rs. {{ number_format($paidAmount, 2) }}</td>
                         <td class="text-right">Rs. {{ number_format($remaining, 2) }}</td>
                         <td>
@@ -242,20 +254,24 @@
                 <tfoot>
                     <tr class="total-row">
                         <td><strong>TOTAL</strong></td>
-                        <td class="text-right"><strong>Rs. {{ number_format($payment->allocations->sum(function($alloc) { return $alloc->order->due_amount + $alloc->allocated_amount; }), 2) }}</strong></td>
-                        <td class="text-right"><strong>Rs. {{ number_format($payment->amount, 2) }}</strong></td>
-                        <td class="text-right"><strong>Rs. {{ number_format($payment->allocations->sum('order.due_amount'), 2) }}</strong></td>
+                        <td class="text-right"><strong>Rs. {{ number_format($allAllocations->sum(function($alloc) { return ($alloc->order ? $alloc->order->due_amount : 0) + $alloc->allocated_amount; }), 2) }}</strong></td>
+                        <td class="text-right"><strong>Rs. {{ number_format($allAllocations->sum('allocated_amount'), 2) }}</strong></td>
+                        <td class="text-right"><strong>Rs. {{ number_format($allAllocations->sum(function($alloc) { return $alloc->order ? $alloc->order->due_amount : 0; }), 2) }}</strong></td>
                         <td></td>
                     </tr>
                 </tfoot>
             </table>
         </div>
+        @endif
 
         {{-- Notes --}}
-        @if($payment->notes)
+        @php
+            $combinedNotes = $paymentList->pluck('notes')->filter()->join(', ');
+        @endphp
+        @if($combinedNotes)
         <div class="section">
             <div class="section-title">NOTES</div>
-            <p>{{ $payment->notes }}</p>
+            <p>{{ $combinedNotes }}</p>
         </div>
         @endif
 

@@ -100,6 +100,9 @@
                                     <i class="bi bi-{{ $payment->payment_method === 'cash' ? 'cash' : ($payment->payment_method === 'cheque' ? 'receipt' : 'bank') }} me-1"></i>
                                     {{ ucfirst(str_replace('_', ' ', $payment->payment_method)) }}
                                 </span>
+                                <button wire:click="downloadReceipt('{{ $payment->payment_reference ?: 'single_'.$payment->id }}')" class="btn btn-sm btn-outline-success ms-2" title="Download Receipt">
+                                    <i class="bi bi-download"></i>
+                                </button>
                             </div>
                         </div>
                     </div>

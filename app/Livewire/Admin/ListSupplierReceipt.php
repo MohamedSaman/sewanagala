@@ -10,6 +10,8 @@ use App\Models\PurchaseOrder;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use App\Livewire\Concerns\WithDynamicLayout;
+use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Support\Str;
 
 #[Title("List Supplier Receipt")]
 class ListSupplierReceipt extends Component
@@ -105,6 +107,31 @@ class ListSupplierReceipt extends Component
         $this->showPaymentModal = false;
         $this->selectedSupplier = null;
         $this->payments = [];
+    }
+
+    public function downloadReceipt($reference)
+    {
+        if (Str::startsWith($reference, 'single_')) {
+            $paymentId = str_replace('single_', '', $reference);
+            $payments = PurchasePayment::with(['supplier', 'allocations.order'])->where('id', $paymentId)->get();
+        } else {
+            $payments = PurchasePayment::with(['supplier', 'allocations.order'])->where('payment_reference', $reference)->get();
+        }
+
+        if ($payments->isEmpty()) {
+            abort(404);
+        }
+
+        $payment = $payments->first();
+
+        $pdf = Pdf::loadView('components.payment-receipt', [
+            'payment' => $payment,
+            'payments' => $payments,
+        ]);
+
+        return response()->streamDownload(function () use ($pdf) {
+            echo $pdf->output();
+        }, 'supplier-receipt-' . $reference . '.pdf');
     }
 
     public function updatedSearchOrderNumber()

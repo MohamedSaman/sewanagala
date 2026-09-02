@@ -1,20 +1,41 @@
 <div>
     <!-- Header -->
-    <div class="d-flex justify-content-between align-items-center mb-5">
+    <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
-            <h3 class="fw-bold text-dark mb-2">
+            <h3 class="fw-bold text-dark mb-1">
                 <i class="bi bi-arrow-return-left text-success me-2"></i> Product Returns
             </h3>
-            <p class="text-muted mb-0">Manage product returns and refunds efficiently</p>
+            <p class="text-muted mb-0">Manage customer returns for system invoices and manual external sales</p>
         </div>
-        <div>
-            <button class="btn btn-primary">
-                <i class="bi bi-download me-2"></i> Export Report
-            </button>
+        <div class="d-flex gap-2">
+            <a href="{{ route('admin.return-list') }}" class="btn btn-outline-primary">
+                <i class="bi bi-list-ul me-1"></i> View Returns List
+            </a>
         </div>
     </div>
 
-    <!-- Customer Search and Invoice Selection -->
+    <!-- Mode Switcher Tabs -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body p-2">
+            <div class="nav nav-pills nav-fill" role="tablist">
+                <button class="nav-link {{ $returnMode === 'system' ? 'active fw-bold shadow-sm' : 'text-muted' }}" 
+                        wire:click="setReturnMode('system')" type="button">
+                    <i class="bi bi-receipt-cutoff me-2"></i> System Invoice Return
+                    <small class="d-block text-xs {{ $returnMode === 'system' ? 'text-white-50' : 'text-muted' }}">Return items from sales recorded in database</small>
+                </button>
+                <button class="nav-link {{ $returnMode === 'manual' ? 'active fw-bold shadow-sm' : 'text-muted' }}" 
+                        wire:click="setReturnMode('manual')" type="button">
+                    <i class="bi bi-journal-plus me-2"></i> Manual / External Sale Return
+                    <small class="d-block text-xs {{ $returnMode === 'manual' ? 'text-white-50' : 'text-muted' }}">Return items from legacy or non-DB invoices</small>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    @if($returnMode === 'system')
+    <!-- ========================================== -->
+    <!-- SYSTEM SALES RETURN SECTION               -->
+    <!-- ========================================== -->
     <div class="row mb-4">
         <!-- Customer Search -->
         <div class="col-lg-6">
@@ -27,12 +48,13 @@
                 <div class="card-body">
                     <div class="mb-3">
                         <label class="form-label fw-semibold">Search Customer or Invoice #</label>
-                        <input type="text" class="form-control" wire:model.live="searchCustomer" placeholder="Search by customer name or invoice number...">
+                        <input type="text" class="form-control" wire:model.live="searchCustomer" placeholder="Search by customer name, phone, or invoice number...">
                     </div>
 
                     @if($searchCustomer && (count($customers) > 0 || count($customerInvoices) > 0))
-                    <div class="border rounded p-3 bg-light">
+                    <div class="border rounded p-3 bg-light mb-3">
                         <h6 class="fw-semibold mb-2">Search Results</h6>
+                        @if(count($customers) > 0)
                         <div class="list-group mb-2">
                             @foreach($customers as $customer)
                             <button class="list-group-item list-group-item-action p-2"
@@ -50,9 +72,11 @@
                             </button>
                             @endforeach
                         </div>
+                        @endif
+
+                        @if(count($customerInvoices) > 0)
                         <div class="list-group">
                             @foreach($customerInvoices as $invoice)
-                            @if(str_contains($invoice->invoice_number, $searchCustomer))
                             <button class="list-group-item list-group-item-action p-2"
                                 wire:click="selectInvoiceForReturn({{ $invoice->id }})"
                                 type="button">
@@ -66,9 +90,9 @@
                                     </div>
                                 </div>
                             </button>
-                            @endif
                             @endforeach
                         </div>
+                        @endif
                     </div>
                     @endif
 
@@ -97,7 +121,7 @@
                     <h5 class="fw-bold mb-0">
                         <i class="bi bi-receipt text-info me-2"></i> Recent Invoices
                     </h5>
-                    <button class="btn btn-info btn-sm" wire:click="loadCustomerInvoices">
+                    <button class="btn btn-info btn-sm text-white" wire:click="loadCustomerInvoices">
                         <i class="bi bi-arrow-clockwise me-1"></i> Refresh
                     </button>
                 </div>
@@ -107,23 +131,23 @@
                         <table class="table table-hover mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th class="ps-4">Invoice #</th>
-                                    <th>Date</th>
-                                    <th>Total</th>
-                                    <th class="text-end pe-4">Action</th>
+                                    <th class="ps-3 text-dark">Invoice #</th>
+                                    <th class="text-dark">Date</th>
+                                    <th class="text-dark">Total</th>
+                                    <th class="text-end pe-3 text-dark">Action</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($customerInvoices as $invoice)
                                 <tr>
-                                    <td class="ps-4">
+                                    <td class="ps-3">
                                         <span class="fw-medium text-dark">{{ $invoice->invoice_number }}</span>
                                     </td>
                                     <td>{{ $invoice->created_at->format('Y-m-d') }}</td>
                                     <td>
                                         <span class="fw-bold text-dark">Rs.{{ number_format($invoice->total_amount, 2) }}</span>
                                     </td>
-                                    <td class="text-end pe-4">
+                                    <td class="text-end pe-3">
                                         <div class="btn-group btn-group-sm">
                                             <button class="btn btn-success"
                                                 wire:click="selectInvoiceForReturn({{ $invoice->id }})">
@@ -167,11 +191,11 @@
                         <table class="table table-bordered align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Condition</th>
-                                    <th>Total Returned</th>
-                                    <th>Total Amount</th>
-                                    <th>Return Details</th>
+                                    <th class="text-dark">Product</th>
+                                    <th class="text-dark">Condition</th>
+                                    <th class="text-dark">Total Returned</th>
+                                    <th class="text-dark">Total Amount</th>
+                                    <th class="text-dark">Return Details</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -185,7 +209,7 @@
                                         </span>
                                         @endforeach
                                     </td>
-                                    <td><span class="badge bg-warning">{{ $returnData['total_returned'] }} units</span></td>
+                                    <td><span class="badge bg-warning text-dark">{{ $returnData['total_returned'] }} units</span></td>
                                     <td class="fw-bold">Rs.{{ number_format($returnData['total_amount'], 2) }}</td>
                                     <td>
                                         <div class="small">
@@ -237,29 +261,29 @@
                         <table class="table table-bordered align-middle mb-0">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Code</th>
-                                    <th>Original Qty</th>
-                                    <th>Returned</th>
-                                    <th>Available</th>
-                                    <th>Return Qty</th>
-                                    <th>Condition</th>
-                                    <th>Unit Price</th>
-                                    <th>Unit Disc.</th>
-                                    <th>Overall Disc.</th>
-                                    <th>Net Price</th>
-                                    <th>Total</th>
+                                    <th class="text-dark">Product</th>
+                                    <th class="text-dark">Code</th>
+                                    <th class="text-dark">Original Qty</th>
+                                    <th class="text-dark">Returned</th>
+                                    <th class="text-dark">Available</th>
+                                    <th class="text-dark">Return Qty</th>
+                                    <th class="text-dark">Condition</th>
+                                    <th class="text-dark">Unit Price</th>
+                                    <th class="text-dark">Unit Disc.</th>
+                                    <th class="text-dark">Overall Disc.</th>
+                                    <th class="text-dark">Net Price</th>
+                                    <th class="text-dark">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach($returnItems as $index => $item)
                                 <tr>
                                     <td>{{ $item['name'] }}</td>
-                                    <td>{{ $selectedInvoice->items[$index]->product->code }}</td>
+                                    <td>{{ isset($selectedInvoice->items[$index]->product) ? $selectedInvoice->items[$index]->product->code : '-' }}</td>
                                     <td>{{ $item['original_qty'] }}</td>
                                     <td>
                                         @if($item['already_returned'] > 0)
-                                        <span class="badge bg-warning">{{ $item['already_returned'] }}</span>
+                                        <span class="badge bg-warning text-dark">{{ $item['already_returned'] }}</span>
                                         @else
                                         <span class="text-muted">0</span>
                                         @endif
@@ -272,16 +296,6 @@
                                             min="0" max="{{ $item['max_qty'] }}"
                                             wire:model.lazy="returnItems.{{ $index }}.return_qty"
                                             @if($item['max_qty']==0) disabled @endif>
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.product_id" value="{{ $item['product_id'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.name" value="{{ $item['name'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.unit_price" value="{{ $item['unit_price'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.discount_per_unit" value="{{ $item['discount_per_unit'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.overall_discount_per_unit" value="{{ $item['overall_discount_per_unit'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.total_discount_per_unit" value="{{ $item['total_discount_per_unit'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.net_unit_price" value="{{ $item['net_unit_price'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.max_qty" value="{{ $item['max_qty'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.original_qty" value="{{ $item['original_qty'] }}">
-                                        <input type="hidden" wire:model="returnItems.{{ $index }}.already_returned" value="{{ $item['already_returned'] }}">
                                     </td>
                                     <td>
                                         <select class="form-select form-select-sm" style="min-width: 110px;"
@@ -330,7 +344,359 @@
     </div>
     @endif
 
-    <!-- Return Processing Modal -->
+    @else
+    <!-- ========================================== -->
+    <!-- MANUAL / EXTERNAL SALES RETURN SECTION    -->
+    <!-- ========================================== -->
+    <div class="row g-4">
+        <!-- Left Column: Invoice Details & Product Search -->
+        <div class="col-lg-5">
+            <!-- Invoice & Customer Details Card -->
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="fw-bold mb-0 text-primary">
+                        <i class="bi bi-file-earmark-text me-2"></i> External Sale Details
+                    </h5>
+                    <small class="text-muted">Enter manual invoice details and select customer</small>
+                </div>
+                <div class="card-body">
+                    <!-- Invoice Number -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            Manual Invoice # <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-hash"></i></span>
+                            <input type="text" class="form-control" wire:model="manualInvoiceNumber" 
+                                   placeholder="e.g. INV-2025-001 or Legacy #1042">
+                        </div>
+                    </div>
+
+                    <!-- Invoice Date -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            Invoice Date <span class="text-danger">*</span>
+                        </label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light"><i class="bi bi-calendar3"></i></span>
+                            <input type="date" class="form-control" wire:model="manualInvoiceDate">
+                        </div>
+                    </div>
+
+                    <!-- Customer Selection / Search -->
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">
+                            Customer Name / Selection <span class="text-danger">*</span>
+                        </label>
+
+                        @if($selectedManualCustomer)
+                        <div class="p-3 bg-light border rounded position-relative">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 38px; height: 38px;">
+                                        <i class="bi bi-person-fill fs-5"></i>
+                                    </div>
+                                    <div>
+                                        <div class="fw-bold">{{ $selectedManualCustomer->name }}</div>
+                                        <small class="text-muted">{{ $selectedManualCustomer->phone ?? 'No phone' }} | {{ $selectedManualCustomer->address ?? 'No address' }}</small>
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-outline-danger btn-sm" wire:click="clearManualCustomer" title="Change Customer">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                        @else
+                        <div class="input-group mb-2">
+                            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control" wire:model.live="manualCustomerSearch" 
+                                   placeholder="Search existing customer by name or phone...">
+                        </div>
+
+                        @if(count($manualCustomers) > 0)
+                        <div class="border rounded p-2 bg-white shadow-sm mb-2" style="max-height: 180px; overflow-y: auto;">
+                            <small class="text-muted fw-bold px-2 d-block mb-1">Search Results:</small>
+                            <div class="list-group list-group-flush">
+                                @foreach($manualCustomers as $cust)
+                                <button type="button" class="list-group-item list-group-item-action py-2 px-2 d-flex justify-content-between align-items-center"
+                                        wire:click="selectManualCustomer({{ $cust->id }})">
+                                    <div>
+                                        <span class="fw-bold">{{ $cust->name }}</span>
+                                        <small class="text-muted d-block">{{ $cust->phone }}</small>
+                                    </div>
+                                    <span class="badge bg-primary rounded-pill">Select</span>
+                                </button>
+                                @endforeach
+                            </div>
+                        </div>
+                        @endif
+
+                        <div class="mt-2">
+                            <small class="text-muted d-block mb-1">Or type customer name directly:</small>
+                            <input type="text" class="form-control form-control-sm" wire:model="manualCustomerName" 
+                                   placeholder="Customer name (e.g. John Silva)">
+                        </div>
+                        @endif
+                    </div>
+                </div>
+            </div>
+
+            <!-- Product Search & Selector Card -->
+            <div class="card shadow-sm">
+                <div class="card-header bg-white border-bottom">
+                    <h5 class="fw-bold mb-0 text-success">
+                        <i class="bi bi-box-seam me-2"></i> Search Products to Return
+                    </h5>
+                    <small class="text-muted">Find items in inventory and add to return list</small>
+                </div>
+                <div class="card-body">
+                    <div class="input-group mb-3">
+                        <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
+                        <input type="text" class="form-control" wire:model.live="manualProductSearch" 
+                               placeholder="Type product name, code, or barcode...">
+                    </div>
+
+                    @if(count($manualProductSearchResults) > 0)
+                    <div class="list-group mb-3 border rounded shadow-sm" style="max-height: 280px; overflow-y: auto;">
+                        @foreach($manualProductSearchResults as $prod)
+                        @php
+                            $sp = $prod->price ? (float)$prod->price->selling_price : 0;
+                            $st = $prod->stock ? (float)$prod->stock->available_stock : 0;
+                        @endphp
+                        <button type="button" class="list-group-item list-group-item-action p-2 d-flex align-items-center justify-content-between"
+                                wire:click="addManualProduct({{ $prod->id }})">
+                            <div class="d-flex align-items-center">
+                                @if($prod->image)
+                                <img src="{{ asset($prod->image) }}" class="rounded me-2" style="width: 40px; height: 40px; object-fit: cover;" onerror="this.src='/images/product.jpg'">
+                                @else
+                                <div class="bg-light rounded me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
+                                    <i class="bi bi-box text-muted"></i>
+                                </div>
+                                @endif
+                                <div>
+                                    <div class="fw-bold text-dark">{{ $prod->name }}</div>
+                                    <small class="text-muted">Code: {{ $prod->code }} | Stock: <span class="badge bg-info text-dark">{{ $st }}</span></small>
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold text-success">Rs.{{ number_format($sp, 2) }}</div>
+                                <span class="badge bg-success"><i class="bi bi-plus"></i> Add</span>
+                            </div>
+                        </button>
+                        @endforeach
+                    </div>
+                    @elseif(strlen($manualProductSearch) > 1)
+                    <div class="alert alert-warning py-2 mb-0">
+                        <i class="bi bi-exclamation-circle me-1"></i> No matching products found for "{{ $manualProductSearch }}".
+                    </div>
+                    @else
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-search fs-3 d-block mb-2 text-muted"></i>
+                        <small>Search products above to add them to the return cart</small>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Column: Return Items Cart & Processing -->
+        <div class="col-lg-7">
+            <div class="card shadow-sm h-100">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center border-bottom">
+                    <div>
+                        <h5 class="fw-bold mb-0 text-dark">
+                            <i class="bi bi-cart-check text-success me-2"></i> Items to Return ({{ count($manualReturnItems) }})
+                        </h5>
+                        <small class="text-muted">Review quantities, selling prices, and conditions</small>
+                    </div>
+                    @if(count($manualReturnItems) > 0)
+                    <button type="button" class="btn btn-outline-danger btn-sm" wire:click="clearManualReturnCart">
+                        <i class="bi bi-trash me-1"></i> Clear Cart
+                    </button>
+                    @endif
+                </div>
+                <div class="card-body p-0">
+                    @if(count($manualReturnItems) > 0)
+                    <div class="table-responsive">
+                        <table class="table table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="ps-3 text-dark">Product</th>
+                                    <th class="text-dark" style="width: 120px;">Unit Price (Rs.)</th>
+                                    <th class="text-dark" style="width: 90px;">Qty</th>
+                                    <th class="text-dark" style="width: 130px;">Condition</th>
+                                    <th class="text-end text-dark">Total</th>
+                                    <th class="text-center text-dark" style="width: 50px;"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($manualReturnItems as $index => $item)
+                                <tr>
+                                    <td class="ps-3">
+                                        <div class="fw-bold text-dark">{{ $item['name'] }}</div>
+                                        <small class="text-muted">Code: {{ $item['code'] }} | Curr. Stock: {{ $item['available_stock'] }}</small>
+                                        <input type="text" class="form-control form-control-sm mt-1" 
+                                               wire:model.lazy="manualReturnItems.{{ $index }}.notes" 
+                                               placeholder="Reason / Notes (optional)">
+                                    </td>
+                                    <td>
+                                        <input type="number" step="0.01" min="0" class="form-control form-control-sm"
+                                               wire:model.lazy="manualReturnItems.{{ $index }}.unit_price">
+                                    </td>
+                                    <td>
+                                        <input type="number" step="1" min="1" class="form-control form-control-sm text-center fw-bold"
+                                               wire:model.lazy="manualReturnItems.{{ $index }}.return_qty">
+                                    </td>
+                                    <td>
+                                        <select class="form-select form-select-sm" wire:model="manualReturnItems.{{ $index }}.return_condition">
+                                            <option value="usable">Usable</option>
+                                            <option value="damage">Damage</option>
+                                            <option value="company_fault">Company Fault</option>
+                                        </select>
+                                    </td>
+                                    <td class="text-end fw-bold text-success">
+                                        Rs.{{ number_format(((float)$item['return_qty']) * ((float)$item['unit_price']), 2) }}
+                                    </td>
+                                    <td class="text-center">
+                                        <button type="button" class="btn btn-outline-danger btn-sm p-1" 
+                                                wire:click="removeManualReturnItem({{ $index }})" title="Remove item">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="p-3 bg-light border-top">
+                        <div class="row align-items-center">
+                            <div class="col-md-6 mb-2 mb-md-0">
+                                <div class="small text-muted">
+                                    <i class="bi bi-info-circle me-1"></i> Returned usable items will be added back to <strong>available stock</strong>. Damaged items will be added to <strong>damage stock</strong>.
+                                </div>
+                            </div>
+                            <div class="col-md-6 text-end">
+                                <div class="text-muted small">Total Return Value</div>
+                                <div class="fs-3 fw-bold text-success">
+                                    Rs.{{ number_format($manualTotalReturnValue, 2) }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="d-flex justify-content-end gap-2 mt-3">
+                            <button type="button" class="btn btn-outline-secondary" wire:click="clearManualReturnCart">
+                                Cancel
+                            </button>
+                            <button type="button" class="btn btn-success px-4 fw-bold shadow-sm" wire:click="processManualReturn">
+                                <i class="bi bi-check-circle me-1"></i> Process Manual Return
+                            </button>
+                        </div>
+                    </div>
+                    @else
+                    <div class="text-center py-5">
+                        <i class="bi bi-cart-x text-muted" style="font-size: 3.5rem;"></i>
+                        <h6 class="fw-bold mt-3 text-secondary">No items in return cart</h6>
+                        <p class="text-muted small mb-0">Use the product search on the left to select items from inventory</p>
+                    </div>
+                    @endif
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manual Return Confirmation Modal -->
+    <div wire:ignore.self class="modal fade" id="manualReturnModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-arrow-return-left me-2"></i> Confirm External Sale Return
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-info py-2">
+                        <i class="bi bi-info-circle me-1"></i> This return is for a manual/external sale. Records will be saved to the manual returns database and item stocks will be restocked.
+                    </div>
+
+                    <div class="row mb-3 g-2">
+                        <div class="col-md-6">
+                            <div class="p-2 border rounded bg-light">
+                                <small class="text-muted d-block">Manual Invoice #</small>
+                                <strong>{{ $manualInvoiceNumber }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="p-2 border rounded bg-light">
+                                <small class="text-muted d-block">Invoice Date</small>
+                                <strong>{{ $manualInvoiceDate }}</strong>
+                            </div>
+                        </div>
+                        <div class="col-md-12">
+                            <div class="p-2 border rounded bg-light">
+                                <small class="text-muted d-block">Customer</small>
+                                <strong>{{ $selectedManualCustomer ? $selectedManualCustomer->name : ($manualCustomerName ?: 'Walk-in Customer') }}</strong>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="fw-bold mb-2">Return Items Summary</h6>
+                    <div class="table-responsive mb-3">
+                        <table class="table table-bordered align-middle mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-dark">Product</th>
+                                    <th class="text-center text-dark">Qty</th>
+                                    <th class="text-dark">Condition</th>
+                                    <th class="text-end text-dark">Unit Price</th>
+                                    <th class="text-end text-dark">Total</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($manualReturnItems as $item)
+                                <tr>
+                                    <td>
+                                        <div class="fw-bold">{{ $item['name'] }}</div>
+                                        <small class="text-muted">Code: {{ $item['code'] }}</small>
+                                        @if(!empty($item['notes']))
+                                        <small class="d-block text-secondary">Note: {{ $item['notes'] }}</small>
+                                        @endif
+                                    </td>
+                                    <td class="text-center fw-bold">{{ $item['return_qty'] }}</td>
+                                    <td>
+                                        <span class="badge bg-{{ ($item['return_condition'] ?? 'usable') === 'usable' ? 'success' : (($item['return_condition'] ?? 'usable') === 'damage' ? 'danger' : 'warning text-dark') }}">
+                                            {{ ucwords(str_replace('_', ' ', $item['return_condition'] ?? 'usable')) }}
+                                        </span>
+                                    </td>
+                                    <td class="text-end">Rs.{{ number_format($item['unit_price'], 2) }}</td>
+                                    <td class="text-end fw-bold text-success">
+                                        Rs.{{ number_format(((float)$item['return_qty']) * ((float)$item['unit_price']), 2) }}
+                                    </td>
+                                </tr>
+                                @endforeach
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td colspan="4" class="text-end fw-bold">Grand Total:</td>
+                                    <td class="text-end fw-bold fs-5 text-success">Rs.{{ number_format($manualTotalReturnValue, 2) }}</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-success px-4 fw-bold" wire:click="confirmManualReturn">
+                        <i class="bi bi-check-circle me-1"></i> Confirm & Save Return
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    <!-- System Return Processing Modal -->
     <div wire:ignore.self class="modal fade" id="returnModal" tabindex="-1">
         <div class="modal-dialog modal-lg">
             <div class="modal-content">
@@ -357,11 +723,11 @@
                         <table class="table table-bordered">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Return Qty</th>
-                                    <th>Condition</th>
-                                    <th>Net Unit Price</th>
-                                    <th>Total</th>
+                                    <th class="text-dark">Product</th>
+                                    <th class="text-dark">Return Qty</th>
+                                    <th class="text-dark">Condition</th>
+                                    <th class="text-dark">Net Unit Price</th>
+                                    <th class="text-dark">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -434,14 +800,14 @@
                         <table class="table table-bordered">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Product</th>
-                                    <th>Code</th>
-                                    <th>Qty</th>
-                                    <th>Unit Price</th>
-                                    <th>Item Disc.</th>
-                                    <th>Overall Disc.</th>
-                                    <th>Net Price</th>
-                                    <th>Total</th>
+                                    <th class="text-dark">Product</th>
+                                    <th class="text-dark">Code</th>
+                                    <th class="text-dark">Qty</th>
+                                    <th class="text-dark">Unit Price</th>
+                                    <th class="text-dark">Item Disc.</th>
+                                    <th class="text-dark">Overall Disc.</th>
+                                    <th class="text-dark">Net Price</th>
+                                    <th class="text-dark">Total</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -491,11 +857,6 @@
         transition: all 0.3s ease;
     }
 
-    .card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
-    }
-
     .card-header {
         background-color: white;
         border-bottom: 1px solid #dee2e6;
@@ -504,9 +865,7 @@
     }
 
     .table th {
-        border-top: none;
         font-weight: 600;
-        color: #ffff;
         font-size: 0.85rem;
         text-transform: uppercase;
         letter-spacing: 0.5px;
@@ -522,20 +881,18 @@
         padding: 0.25rem 0.5rem;
     }
 
-    .modal-header {
-        border-bottom: 1px solid #dee2e6;
-    }
-
     .badge {
         font-size: 0.75em;
     }
 
-    .table-hover tbody tr:hover {
-        background-color: rgba(0, 0, 0, 0.025);
+    .nav-pills .nav-link {
+        border-radius: 8px;
+        padding: 0.75rem 1rem;
+        transition: all 0.2s ease;
     }
 
-    .border-warning {
-        border-width: 2px !important;
+    .nav-pills .nav-link.active {
+        background-color: #0d6efd;
     }
 </style>
 @endpush
@@ -543,26 +900,46 @@
 @push('scripts')
 <script>
     window.addEventListener('alert', event => {
-        Swal.fire('Success', event.detail.message, 'success');
+        Swal.fire('Success', event.detail.message || (event.detail && event.detail[0] ? event.detail[0].message : 'Action completed'), 'success');
     });
 
     Livewire.on('show-return-modal', () => {
         var modalEl = document.getElementById('returnModal');
-        var modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        if (modalEl) {
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    });
+
+    Livewire.on('show-manual-return-modal', () => {
+        var modalEl = document.getElementById('manualReturnModal');
+        if (modalEl) {
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
+    });
+
+    Livewire.on('close-manual-return-modal', () => {
+        var modalEl = document.getElementById('manualReturnModal');
+        if (modalEl) {
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
+        }
     });
 
     Livewire.on('show-invoice-modal', () => {
         var modalEl = document.getElementById('invoiceModal');
-        var modal = new bootstrap.Modal(modalEl);
-        modal.show();
+        if (modalEl) {
+            var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+            modal.show();
+        }
     });
 
     Livewire.on('close-return-modal', () => {
         var modalEl = document.getElementById('returnModal');
-        var modal = bootstrap.Modal.getInstance(modalEl);
-        if (modal) {
-            modal.hide();
+        if (modalEl) {
+            var modal = bootstrap.Modal.getInstance(modalEl);
+            if (modal) modal.hide();
         }
     });
 
