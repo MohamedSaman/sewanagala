@@ -14,6 +14,24 @@
         </div>
     </div>
 
+    <!-- Source Switcher Tabs -->
+    <div class="card mb-4 border-0 shadow-sm">
+        <div class="card-body p-2">
+            <div class="nav nav-pills nav-fill" role="tablist">
+                <button class="nav-link {{ $returnSource === 'system' ? 'active fw-bold shadow-sm' : 'text-muted' }}" 
+                        wire:click="setReturnSource('system')" type="button">
+                    <i class="bi bi-receipt-cutoff me-2"></i> System PO Returns
+                    <small class="d-block text-xs {{ $returnSource === 'system' ? 'text-white-50' : 'text-muted' }}">Returns linked to system purchase orders</small>
+                </button>
+                <button class="nav-link {{ $returnSource === 'manual' ? 'active fw-bold shadow-sm' : 'text-muted' }}" 
+                        wire:click="setReturnSource('manual')" type="button">
+                    <i class="bi bi-journal-plus me-2"></i> Manual / External Returns
+                    <small class="d-block text-xs {{ $returnSource === 'manual' ? 'text-white-50' : 'text-muted' }}">Returns without a system purchase order</small>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Summary Cards -->
     <div class="row mb-4">
         <div class="col-xl-3 col-md-6 mb-4">
@@ -95,7 +113,7 @@
                     <input type="text" class="form-control" wire:model.live="search"
                         placeholder="Search product, code, or supplier...">
                 </div>
-                <div class="col-md-2">
+                <div class="col-md-{{ $returnSource === 'system' ? '2' : '3' }}">
                     <label class="form-label fw-semibold">Supplier</label>
                     <select class="form-select" wire:model.live="supplierFilter">
                         <option value="">All Suppliers</option>
@@ -104,6 +122,7 @@
                         @endforeach
                     </select>
                 </div>
+                @if($returnSource === 'system')
                 <div class="col-md-2">
                     <label class="form-label fw-semibold">Purchase Order</label>
                     <select class="form-select" wire:model.live="purchaseOrderFilter">
@@ -113,7 +132,8 @@
                         @endforeach
                     </select>
                 </div>
-                <div class="col-md-2">
+                @endif
+                <div class="col-md-{{ $returnSource === 'system' ? '2' : '3' }}">
                     <label class="form-label fw-semibold">Return Reason</label>
                     <select class="form-select" wire:model.live="reasonFilter">
                         <option value="">All Reasons</option>
@@ -121,6 +141,8 @@
                         <option value="defective">Defective</option>
                         <option value="wrong_item">Wrong Item</option>
                         <option value="excess">Excess</option>
+                        <option value="expired">Expired</option>
+                        <option value="quality_issue">Quality Issue</option>
                         <option value="other">Other</option>
                     </select>
                 </div>
@@ -184,7 +206,7 @@
                             </th>
                             <th class="ps-4">Return ID</th>
                             <th>Date</th>
-                            <th>Purchase Order</th>
+                            <th>{{ $returnSource === 'manual' ? 'Ref / Bill #' : 'Purchase Order' }}</th>
                             <th>Supplier</th>
                             <th>Product</th>
                             <th>Quantity</th>
@@ -202,6 +224,9 @@
                             </td>
                             <td class="ps-4">
                                 <span class="fw-medium text-dark">#{{ $return->id }}</span>
+                                @if($returnSource === 'manual')
+                                <span class="badge bg-secondary ms-1">Manual</span>
+                                @endif
                             </td>
                             <td>
                                 <div class="small">
@@ -210,12 +235,22 @@
                                 </div>
                             </td>
                             <td>
-                                <span class="fw-semibold text-info">{{ $return->purchaseOrder->order_code }}</span>
+                                @if($returnSource === 'manual')
+                                <span class="fw-semibold text-primary">{{ $return->reference_number }}</span>
+                                @else
+                                <span class="fw-semibold text-info">{{ $return->purchaseOrder->order_code ?? '-' }}</span>
+                                @endif
                             </td>
                             <td>
                                 <div class="d-flex align-items-center">
                                     <i class="bi bi-building me-2 text-muted"></i>
-                                    <span class="fw-medium">{{ $return->purchaseOrder->supplier->name }}</span>
+                                    <span class="fw-medium">
+                                        @if($returnSource === 'manual')
+                                        {{ $return->supplier ? $return->supplier->name : ($return->supplier_name ?: 'General Supplier') }}
+                                        @else
+                                        {{ $return->purchaseOrder->supplier->name ?? '-' }}
+                                        @endif
+                                    </span>
                                 </div>
                             </td>
                             <td>
@@ -274,16 +309,17 @@
                                         <!-- View Details -->
                                         <li>
                                             <button class="dropdown-item py-2 d-flex align-items-center"
-                                                wire:click="viewReturn({{ $return->id }})"
+                                                wire:click="viewReturn({{ $return->id }}, {{ $returnSource === 'manual' ? 'true' : 'false' }})"
                                                 wire:loading.attr="disabled">
                                                 <i class="bi bi-eye text-info me-2"></i>
                                                 <span>View Details</span>
-                                                <div wire:loading wire:target="viewReturn({{ $return->id }})"
+                                                <div wire:loading wire:target="viewReturn({{ $return->id }}, {{ $returnSource === 'manual' ? 'true' : 'false' }})"
                                                     class="spinner-border spinner-border-sm ms-2">
                                                 </div>
                                             </button>
                                         </li>
 
+                                        @if($returnSource === 'system')
                                         <!-- Download PDF -->
                                         <li>
                                             <button class="dropdown-item py-2 d-flex align-items-center"
@@ -296,19 +332,7 @@
                                                 </div>
                                             </button>
                                         </li>
-
-                                        <!-- Export CSV -->
-                                        <li>
-                                            <button class="dropdown-item py-2 d-flex align-items-center"
-                                                wire:click="exportSingleCSV({{ $return->id }})"
-                                                wire:loading.attr="disabled">
-                                                <i class="bi bi-file-earmark-excel text-success me-2"></i>
-                                                <span>Export CSV</span>
-                                                <div wire:loading wire:target="exportSingleCSV({{ $return->id }})"
-                                                    class="spinner-border spinner-border-sm ms-2">
-                                                </div>
-                                            </button>
-                                        </li>
+                                        @endif
 
                                         <li>
                                             <hr class="dropdown-divider my-1">
@@ -318,11 +342,11 @@
                                         @if(auth()->user()->hasPermission('menu_return_supplier_delete'))
                                         <li>
                                             <button class="dropdown-item py-2 d-flex align-items-center text-danger"
-                                                wire:click="confirmDelete({{ $return->id }})"
+                                                wire:click="confirmDelete({{ $return->id }}, {{ $returnSource === 'manual' ? 'true' : 'false' }})"
                                                 wire:loading.attr="disabled">
                                                 <i class="bi bi-trash me-2"></i>
                                                 <span>Delete Return</span>
-                                                <div wire:loading wire:target="confirmDelete({{ $return->id }})"
+                                                <div wire:loading wire:target="confirmDelete({{ $return->id }}, {{ $returnSource === 'manual' ? 'true' : 'false' }})"
                                                     class="spinner-border spinner-border-sm ms-2">
                                                 </div>
                                             </button>
@@ -375,9 +399,14 @@
                     @if($selectedReturn)
                     <div class="row mb-4">
                         <div class="col-md-6">
-                            <p><strong>Return ID:</strong> #{{ $selectedReturn->id }}</p>
-                            <p><strong>Purchase Order:</strong> {{ $selectedReturn->purchaseOrder->order_code }}</p>
-                            <p><strong>Supplier:</strong> {{ $selectedReturn->purchaseOrder->supplier->name }}</p>
+                            <p><strong>Return ID:</strong> #{{ $selectedReturn->id }} @if($isManualSelected)<span class="badge bg-secondary">Manual</span>@endif</p>
+                            @if($isManualSelected)
+                            <p><strong>Reference #:</strong> {{ $selectedReturn->reference_number }}</p>
+                            <p><strong>Supplier:</strong> {{ $selectedReturn->supplier ? $selectedReturn->supplier->name : ($selectedReturn->supplier_name ?: 'General Supplier') }}</p>
+                            @else
+                            <p><strong>Purchase Order:</strong> {{ $selectedReturn->purchaseOrder->order_code ?? '-' }}</p>
+                            <p><strong>Supplier:</strong> {{ $selectedReturn->purchaseOrder->supplier->name ?? '-' }}</p>
+                            @endif
                         </div>
                         <div class="col-md-6">
                             <p><strong>Return Date:</strong> {{ $selectedReturn->created_at->format('M j, Y g:i A') }}</p>
@@ -388,6 +417,14 @@
                                     {{ ucfirst(str_replace('_', ' ', $selectedReturn->return_reason)) }}
                                 </span>
                             </p>
+                            @if($isManualSelected && !empty($selectedReturn->return_condition))
+                            <p>
+                                <strong>Deducted From:</strong>
+                                <span class="badge bg-{{ $selectedReturn->return_condition === 'damage' ? 'danger' : 'info text-dark' }}">
+                                    {{ $selectedReturn->return_condition === 'damage' ? 'Damage Stock' : 'Available Stock' }}
+                                </span>
+                            </p>
+                            @endif
                         </div>
                     </div>
 

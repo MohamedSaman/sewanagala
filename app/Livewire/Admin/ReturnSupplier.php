@@ -9,6 +9,7 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchaseOrderItem;
 use App\Models\ProductStock;
 use App\Models\ReturnSupplier as ReturnSupplierModel;
+use App\Models\ManualSupplierReturn;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
@@ -19,6 +20,9 @@ use App\Livewire\Concerns\WithDynamicLayout;
 class ReturnSupplier extends Component
 {
     use WithDynamicLayout;
+
+    // Mode: 'system' or 'manual'
+    public $returnMode = 'system';
 
     public $searchSupplier = '';
     public $suppliers = [];
@@ -44,6 +48,34 @@ class ReturnSupplier extends Component
 
     public $previousReturns = []; // Track previously returned items
     public $returnReason = 'damaged'; // Default return reason
+
+    // ==========================================
+    // Manual / External Supplier Return Properties
+    // ==========================================
+    public $manualReferenceNumber = '';
+    public $manualReturnDate = '';
+    public $manualSupplierSearch = '';
+    public $manualSuppliers = [];
+    public $selectedManualSupplier = null;
+    public $manualSupplierName = '';
+    public $manualSupplierPhone = '';
+
+    public $manualProductSearch = '';
+    public $manualProductSearchResults = [];
+    public $manualReturnItems = [];
+    public $manualTotalReturnValue = 0;
+    public $manualNotes = '';
+
+    public function mount()
+    {
+        $this->manualReturnDate = now()->format('Y-m-d');
+    }
+
+    /** 🔄 Switch between System and Manual Return modes */
+    public function setReturnMode($mode)
+    {
+        $this->returnMode = $mode;
+    }
 
     /** 🔍 Search Supplier or Purchase Order */
     public function updatedSearchSupplier()
@@ -544,6 +576,290 @@ class ReturnSupplier extends Component
         $this->overallDiscountPerItem = 0;
         $this->previousReturns = [];
         $this->returnReason = 'damaged';
+    }
+
+    // ==========================================
+    // MANUAL / EXTERNAL SUPPLIER RETURN METHODS
+    // ==========================================
+
+    /** 🔍 Search Supplier for Manual Return */
+    public function updatedManualSupplierSearch()
+    {
+        if (strlen($this->manualSupplierSearch) > 1) {
+            $this->manualSuppliers = ProductSupplier::query()
+                ->where('name', 'like', '%' . $this->manualSupplierSearch . '%')
+                ->orWhere('phone', 'like', '%' . $this->manualSupplierSearch . '%')
+                ->orWhere('businessname', 'like', '%' . $this->manualSupplierSearch . '%')
+                ->limit(8)
+                ->get();
+        } else {
+            $this->manualSuppliers = [];
+        }
+    }
+
+    /** 👤 Select Supplier for Manual Return */
+    public function selectManualSupplier($supplierId)
+    {
+        $supplier = ProductSupplier::find($supplierId);
+        if ($supplier) {
+            $this->selectedManualSupplier = $supplier;
+            $this->manualSupplierName = $supplier->name;
+            $this->manualSupplierPhone = $supplier->phone ?? '';
+            $this->manualSupplierSearch = '';
+            $this->manualSuppliers = [];
+        }
+    }
+
+    /** ❌ Clear Selected Supplier for Manual Return */
+    public function clearManualSupplier()
+    {
+        $this->selectedManualSupplier = null;
+        $this->manualSupplierName = '';
+        $this->manualSupplierPhone = '';
+        $this->manualSupplierSearch = '';
+        $this->manualSuppliers = [];
+    }
+
+    /** 🔍 Search Product to add to Manual Return */
+    public function updatedManualProductSearch()
+    {
+        if (strlen($this->manualProductSearch) > 1) {
+            $this->manualProductSearchResults = ProductDetail::with(['price', 'stock'])
+                ->where('status', 1)
+                ->where(function ($q) {
+                    $q->where('name', 'like', '%' . $this->manualProductSearch . '%')
+                        ->orWhere('code', 'like', '%' . $this->manualProductSearch . '%')
+                        ->orWhere('barcode', 'like', '%' . $this->manualProductSearch . '%');
+                })
+                ->limit(10)
+                ->get();
+        } else {
+            $this->manualProductSearchResults = [];
+        }
+    }
+
+    /** ➕ Add Product to Manual Return Cart */
+    public function addManualProduct($productId)
+    {
+        $product = ProductDetail::with(['price', 'stock'])->find($productId);
+        if (!$product) return;
+
+        // Check if already in cart
+        $existsIndex = null;
+        foreach ($this->manualReturnItems as $index => $item) {
+            if ($item['product_id'] == $productId) {
+                $existsIndex = $index;
+                break;
+            }
+        }
+
+        if ($existsIndex !== null) {
+            $this->manualReturnItems[$existsIndex]['return_qty'] += 1;
+            $this->manualReturnItems[$existsIndex]['total_amount'] =
+                $this->manualReturnItems[$existsIndex]['return_qty'] * $this->manualReturnItems[$existsIndex]['unit_price'];
+        } else {
+            $costPrice = $product->price ? (float)$product->price->supplier_price : 0;
+            if ($costPrice == 0 && $product->price) {
+                $costPrice = (float)$product->price->cost_price;
+            }
+            $availableStock = $product->stock ? (float)$product->stock->available_stock : 0;
+            $damageStock = $product->stock ? (float)$product->stock->damage_stock : 0;
+
+            $this->manualReturnItems[] = [
+                'product_id' => $product->id,
+                'name' => $product->name,
+                'code' => $product->code,
+                'image' => $product->image,
+                'available_stock' => $availableStock,
+                'damage_stock' => $damageStock,
+                'total_stock' => $availableStock + $damageStock,
+                'unit_price' => $costPrice,
+                'return_qty' => 1,
+                'return_condition' => ($damageStock > 0 ? 'damage' : 'usable'),
+                'return_reason' => 'damaged',
+                'notes' => '',
+                'total_amount' => $costPrice * 1,
+            ];
+        }
+
+        $this->manualProductSearch = '';
+        $this->manualProductSearchResults = [];
+        $this->calculateManualTotalReturnValue();
+    }
+
+    /** ❌ Remove Item from Manual Return Cart */
+    public function removeManualReturnItem($index)
+    {
+        unset($this->manualReturnItems[$index]);
+        $this->manualReturnItems = array_values($this->manualReturnItems);
+        $this->calculateManualTotalReturnValue();
+    }
+
+    /** 🔄 Auto-update totals when Manual Return quantities or prices change */
+    public function updatedManualReturnItems()
+    {
+        foreach ($this->manualReturnItems as $index => $item) {
+            $qty = max(0, (float)($item['return_qty'] ?? 0));
+            $price = max(0, (float)($item['unit_price'] ?? 0));
+            $this->manualReturnItems[$index]['total_amount'] = $qty * $price;
+        }
+        $this->calculateManualTotalReturnValue();
+    }
+
+    /** 💰 Calculate Total Manual Return Value */
+    private function calculateManualTotalReturnValue()
+    {
+        $this->manualTotalReturnValue = collect($this->manualReturnItems)->sum(function ($item) {
+            return ((float)($item['return_qty'] ?? 0)) * ((float)($item['unit_price'] ?? 0));
+        });
+    }
+
+    /** 🧹 Clear Manual Return Cart */
+    public function clearManualReturnCart()
+    {
+        $this->manualReturnItems = [];
+        $this->manualTotalReturnValue = 0;
+        $this->manualReferenceNumber = '';
+        $this->manualReturnDate = now()->format('Y-m-d');
+        $this->clearManualSupplier();
+        $this->manualNotes = '';
+    }
+
+    /** ✅ Validate and prompt confirmation for Manual Return */
+    public function processManualReturn()
+    {
+        $this->calculateManualTotalReturnValue();
+
+        if (empty(trim($this->manualReferenceNumber))) {
+            $this->js("Swal.fire('Error!', 'Please enter the reference / invoice number for this external supplier return.', 'error')");
+            return;
+        }
+
+        if (empty($this->manualReturnDate)) {
+            $this->js("Swal.fire('Error!', 'Please select the return date.', 'error')");
+            return;
+        }
+
+        if (empty($this->selectedManualSupplier) && empty(trim($this->manualSupplierName))) {
+            $this->js("Swal.fire('Error!', 'Please select a supplier or type the supplier name.', 'error')");
+            return;
+        }
+
+        if (empty($this->manualReturnItems)) {
+            $this->js("Swal.fire('Error!', 'Please add at least one product to return.', 'error')");
+            return;
+        }
+
+        foreach ($this->manualReturnItems as $item) {
+            $qty = (float)($item['return_qty'] ?? 0);
+            if ($qty <= 0) {
+                $this->js("Swal.fire('Error!', 'Return quantity must be greater than 0 for " . addslashes($item['name']) . "', 'error')");
+                return;
+            }
+
+            if (!isset($item['unit_price']) || (float)$item['unit_price'] < 0) {
+                $this->js("Swal.fire('Error!', 'Unit price cannot be negative for " . addslashes($item['name']) . "', 'error')");
+                return;
+            }
+
+            // Check stock availability
+            $condition = $item['return_condition'] ?? 'usable';
+            $stock = ProductStock::where('product_id', $item['product_id'])->first();
+            $availableInStock = 0;
+            if ($stock) {
+                if ($condition === 'damage') {
+                    $availableInStock = $stock->damage_stock;
+                    $stockName = 'damage stock';
+                } else {
+                    $availableInStock = $stock->available_stock;
+                    $stockName = 'available stock';
+                }
+            }
+
+            if (!$stock || $availableInStock < $qty) {
+                $this->js("Swal.fire('Error!', 'Cannot return {$qty} units of " . addslashes($item['name']) . ". Current {$stockName} is only {$availableInStock} units.', 'error')");
+                return;
+            }
+        }
+
+        $this->dispatch('show-manual-return-modal');
+    }
+
+    /** 💾 Confirm and save Manual Return to manual_supplier_returns table */
+    public function confirmManualReturn()
+    {
+        $this->calculateManualTotalReturnValue();
+
+        if (empty($this->manualReturnItems) || empty(trim($this->manualReferenceNumber))) {
+            return;
+        }
+
+        $suppName = $this->selectedManualSupplier ? $this->selectedManualSupplier->name : ($this->manualSupplierName ?: 'General Supplier');
+        $suppId = $this->selectedManualSupplier ? $this->selectedManualSupplier->id : null;
+        $refNumber = trim($this->manualReferenceNumber);
+        $returnDate = $this->manualReturnDate ?: now()->toDateString();
+        $generalNotes = $this->manualNotes;
+
+        DB::transaction(function () use ($suppName, $suppId, $refNumber, $returnDate, $generalNotes) {
+            $totalReturnAmount = 0;
+
+            foreach ($this->manualReturnItems as $item) {
+                $qty = (float)$item['return_qty'];
+                $unitPrice = (float)$item['unit_price'];
+                $rowTotal = $qty * $unitPrice;
+                $totalReturnAmount += $rowTotal;
+
+                $condition = $item['return_condition'] ?? 'usable';
+                $reason = $item['return_reason'] ?? 'damaged';
+                $itemNotes = !empty($item['notes']) ? $item['notes'] : $generalNotes;
+
+                ManualSupplierReturn::create([
+                    'reference_number' => $refNumber,
+                    'return_date' => $returnDate,
+                    'supplier_id' => $suppId,
+                    'supplier_name' => $suppName,
+                    'product_id' => $item['product_id'],
+                    'return_quantity' => $qty,
+                    'unit_price' => $unitPrice,
+                    'total_amount' => $rowTotal,
+                    'return_condition' => $condition,
+                    'return_reason' => $reason,
+                    'notes' => $itemNotes ?: 'Manual / External supplier return',
+                    'created_by' => auth()->id(),
+                ]);
+
+                // Reduce inventory stock based on return condition
+                $this->updateManualProductStock($item['product_id'], $qty, $condition);
+            }
+
+            // If a registered supplier was selected, add the return credit as overpayment
+            if ($suppId && $totalReturnAmount > 0) {
+                $supplier = ProductSupplier::find($suppId);
+                if ($supplier) {
+                    $supplier->addOverpayment($totalReturnAmount);
+                }
+            }
+        });
+
+        $this->clearManualReturnCart();
+        $this->dispatch('close-manual-return-modal');
+        $this->dispatch('alert', ['message' => 'Manual supplier return processed successfully and inventory updated!']);
+    }
+
+    /** 📉 Reduce Product Stock for Manual Supplier Returns */
+    private function updateManualProductStock($productId, $quantity, $condition = 'usable')
+    {
+        $stock = ProductStock::where('product_id', $productId)->first();
+
+        if ($stock) {
+            if ($condition === 'damage') {
+                $stock->damage_stock = max(0, $stock->damage_stock - $quantity);
+            } else {
+                $stock->available_stock = max(0, $stock->available_stock - $quantity);
+            }
+            $stock->total_stock = max(0, ($stock->available_stock ?? 0) + ($stock->damage_stock ?? 0));
+            $stock->save();
+        }
     }
 
     public function render()

@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sale Receipt - {{ $sale->invoice_number }}</title>
     @php
-        $paper = isset($paper) && in_array(strtolower($paper), ['a4', 'a5']) ? strtolower($paper) : 'a5';
+        $paper = isset($paper) && in_array(strtolower($paper), ['a4', 'a5', 'a5-on-a4']) ? strtolower($paper) : 'a5';
         $viewOnly = isset($viewOnly) ? (bool)$viewOnly : false;
 
         // Customer Details
@@ -86,8 +86,11 @@
             $slicedPages = [];
 
             if ($totalItemsCount <= ($page1Cap + $lastPageCap)) {
-                $slicedPages[] = $items->slice(0, $page1Cap);
-                $slicedPages[] = $items->slice($page1Cap);
+                // Balance items between Page 1 and Last Page so Last Page is never empty
+                $lastCount = min($lastPageCap, max(3, (int) ceil($totalItemsCount / 2)));
+                $p1Count = $totalItemsCount - $lastCount;
+                $slicedPages[] = $items->slice(0, $p1Count);
+                $slicedPages[] = $items->slice($p1Count);
             } else {
                 $slicedPages[] = $items->slice(0, $page1Cap);
                 $curr = $page1Cap;
@@ -121,18 +124,25 @@
             }
         }
         $totalPagesCount = count($pagesData);
+        $a4Sheets = array_chunk($pagesData, 2);
+        $totalA4SheetsCount = count($a4Sheets);
     @endphp
 
     <style id="dynamic-print-style">
         @if($paper === 'a4')
         @page {
             size: A4 portrait;
-            margin: 8mm 8mm 8mm 8mm;
+            margin: 8mm;
+        }
+        @elseif($paper === 'a5-on-a4')
+        @page {
+            size: A4 portrait;
+            margin: 0;
         }
         @else
         @page {
             size: A5 landscape;
-            margin: 3mm 4mm 3mm 4mm;
+            margin: 3mm 4mm;
         }
         @endif
     </style>
@@ -260,37 +270,190 @@
             margin: 0 auto;
         }
 
-        /* ── MODE 1: A5 Landscape Mode (Screen) ── */
+        /* ── Notice & Driver Warning Banner (Screen Only) ── */
+        .a5-notice-banner {
+            width: 210mm;
+            background: #FFFBEB;
+            border: 1.5px solid #F59E0B;
+            border-radius: 8px;
+            padding: 10px 14px;
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            box-shadow: 0 2px 10px rgba(245, 158, 11, 0.15);
+            box-sizing: border-box;
+            transition: all 0.2s ease;
+        }
+
+        .a5-notice-banner.notice-info {
+            background: #EFF6FF;
+            border-color: #3B82F6;
+            box-shadow: 0 2px 10px rgba(59, 130, 246, 0.15);
+        }
+
+        .a5-notice-banner .notice-icon {
+            font-size: 20px;
+            line-height: 1;
+            flex-shrink: 0;
+            margin-top: 1px;
+        }
+
+        .a5-notice-banner .notice-body {
+            flex: 1;
+            font-size: 8pt;
+            line-height: 1.45;
+            color: #92400E;
+        }
+
+        .a5-notice-banner.notice-info .notice-body {
+            color: #1E40AF;
+        }
+
+        .a5-notice-banner .notice-title {
+            font-weight: 700;
+            font-size: 8.5pt;
+            margin-bottom: 2px;
+        }
+
+        .a5-notice-banner .notice-desc {
+            font-weight: 500;
+        }
+
+        .a5-notice-banner .notice-close {
+            background: transparent;
+            border: none;
+            color: #94A3B8;
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0 4px;
+            line-height: 1;
+        }
+        .a5-notice-banner .notice-close:hover {
+            color: #334155;
+        }
+
+        /* ── MODE 1: A5 Landscape Mode (Screen Preview: Exact 210mm × 148mm) ── */
+        .paper-mode-a5 .a5-a4-sheet {
+            display: contents;
+        }
+
         .paper-mode-a5 .a5-page {
-            width: 204mm;
-            height: 140mm;
-            max-height: 140mm;
+            width: 210mm;
+            height: 148mm;
+            max-height: 148mm;
             background: #ffffff;
             border-radius: 4px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-            padding: 4px;
+            padding: 3mm 4mm;
             position: relative;
             box-sizing: border-box;
+            break-after: page;
             page-break-after: always;
+            break-inside: avoid;
             page-break-inside: avoid;
             overflow: hidden;
         }
         .paper-mode-a5 .a5-page:last-child {
+            break-after: avoid;
             page-break-after: avoid;
         }
 
-        /* ── MODE 2: A4 Portrait Mode (Single Complete Bill on Screen) ── */
-        .paper-mode-a4 .a4-full-page {
-            width: 204mm;
-            min-height: 280mm;
+        .paper-mode-a5 .a5-a4-cut-guide,
+        .paper-mode-a5 .a5-a4-blank-area {
+            display: none !important;
+        }
+
+        /* ── MODE 3: A5 on A4 Sheet Mode (Screen Preview: 210mm × 297mm A4 sheet containing up to two 210mm × 148mm A5 pages) ── */
+        .paper-mode-a5-on-a4 .a5-a4-sheet {
+            width: 210mm;
+            height: 297mm;
+            min-height: 297mm;
             background: #ffffff;
             border-radius: 4px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
-            padding: 6px;
             position: relative;
             box-sizing: border-box;
-            page-break-after: avoid;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            break-after: page;
+            page-break-after: always;
+            break-inside: avoid;
             page-break-inside: avoid;
+        }
+        .paper-mode-a5-on-a4 .a5-a4-sheet:last-child {
+            break-after: avoid;
+            page-break-after: avoid;
+        }
+
+        .paper-mode-a5-on-a4 .a5-page {
+            width: 210mm;
+            height: 148mm;
+            min-height: 148mm;
+            max-height: 148mm;
+            background: #ffffff;
+            padding: 3mm 4mm;
+            position: relative;
+            box-sizing: border-box;
+            overflow: hidden;
+            border-radius: 0;
+            box-shadow: none;
+        }
+
+        .paper-mode-a5-on-a4 .a5-a4-cut-guide {
+            width: 100%;
+            height: 18px;
+            border-top: 1px dashed #94A3B8;
+            background: #F8FAFC;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 7pt;
+            color: #64748B;
+            font-weight: 600;
+            user-select: none;
+            letter-spacing: 0.2px;
+            box-sizing: border-box;
+        }
+
+        .paper-mode-a5-on-a4 .a5-a4-blank-area {
+            flex: 1;
+            background: repeating-linear-gradient(
+                -45deg,
+                #ffffff,
+                #ffffff 15px,
+                #F8FAFC 15px,
+                #F8FAFC 30px
+            );
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #94A3B8;
+            font-size: 8pt;
+            font-style: italic;
+            user-select: none;
+        }
+
+        /* ── MODE 2: A4 Portrait Mode (Screen Preview: Exact 210mm × 297mm) ── */
+        .paper-mode-a4 .a4-full-page {
+            width: 210mm;
+            min-height: 297mm;
+            background: #ffffff;
+            border-radius: 4px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            padding: 8mm;
+            position: relative;
+            box-sizing: border-box;
+            break-after: avoid;
+            page-break-after: avoid;
+            break-inside: avoid;
+            page-break-inside: avoid;
+        }
+
+        .paper-mode-a4 .a5-a4-cut-guide,
+        .paper-mode-a4 .a5-a4-blank-area {
+            display: none !important;
         }
 
         /* Border Wrapper */
@@ -300,7 +463,7 @@
             border: 1.5px solid #16285A;
             border-radius: 5px;
             background: #ffffff;
-            padding: 6px 8px;
+            padding: 5px 7px;
             box-sizing: border-box;
             display: flex;
             flex-direction: column;
@@ -309,7 +472,7 @@
 
         .paper-mode-a4 .inv-border-wrap {
             height: auto;
-            min-height: 275mm;
+            min-height: calc(297mm - 16mm);
             padding: 8px 12px;
         }
 
@@ -675,7 +838,8 @@
                 margin: 0 !important;
             }
 
-            .print-toolbar {
+            .print-toolbar,
+            .a5-notice-banner {
                 display: none !important;
             }
 
@@ -683,24 +847,92 @@
                 display: block !important;
                 margin: 0 !important;
                 gap: 0 !important;
+                padding: 0 !important;
+            }
+
+            /* MODE 1: A5 Landscape Print */
+            .paper-mode-a5 .a5-a4-sheet {
+                display: contents !important;
             }
 
             .paper-mode-a5 .a5-page {
                 border-radius: 0 !important;
                 box-shadow: none !important;
                 width: 100% !important;
-                height: 100% !important;
-                max-height: 140mm !important;
+                height: calc(148mm - 6mm) !important;
+                max-height: calc(148mm - 6mm) !important;
                 margin: 0 !important;
                 padding: 0 !important;
-                page-break-after: always;
+                break-after: page !important;
+                page-break-after: always !important;
+                break-inside: avoid !important;
                 page-break-inside: avoid !important;
                 overflow: hidden !important;
+                box-sizing: border-box !important;
             }
             .paper-mode-a5 .a5-page:last-child {
+                break-after: avoid !important;
                 page-break-after: avoid !important;
             }
 
+            /* MODE 3: A5 on A4 Sheet Print (A4 paper, up to two A5 invoices per A4 sheet) */
+            .paper-mode-a5-on-a4 .a5-a4-sheet {
+                width: 210mm !important;
+                height: 297mm !important;
+                max-height: 297mm !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                border: none !important;
+                box-shadow: none !important;
+                background: transparent !important;
+                display: flex !important;
+                flex-direction: column !important;
+                justify-content: flex-start !important;
+                break-after: page !important;
+                page-break-after: always !important;
+                break-inside: avoid !important;
+                page-break-inside: avoid !important;
+                overflow: hidden !important;
+                box-sizing: border-box !important;
+            }
+            .paper-mode-a5-on-a4 .a5-a4-sheet:last-child {
+                break-after: avoid !important;
+                page-break-after: avoid !important;
+            }
+
+            .paper-mode-a5-on-a4 .a5-page {
+                width: 210mm !important;
+                height: 148mm !important;
+                max-height: 148mm !important;
+                padding: 3mm 4mm !important;
+                box-sizing: border-box !important;
+                margin: 0 !important;
+                border: none !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                overflow: hidden !important;
+                break-after: avoid !important;
+                page-break-after: avoid !important;
+            }
+
+            .paper-mode-a5-on-a4 .a5-a4-cut-guide {
+                width: 100% !important;
+                height: 0 !important;
+                border-top: 0.5px dashed #CBD5E1 !important;
+                background: transparent !important;
+                margin: 0 !important;
+                padding: 0 !important;
+                overflow: hidden !important;
+            }
+            .paper-mode-a5-on-a4 .a5-a4-cut-guide span {
+                display: none !important;
+            }
+
+            .paper-mode-a5-on-a4 .a5-a4-blank-area {
+                display: none !important;
+            }
+
+            /* MODE 2: A4 Portrait Print */
             .paper-mode-a4 .a4-full-page {
                 border-radius: 0 !important;
                 box-shadow: none !important;
@@ -708,13 +940,15 @@
                 min-height: 0 !important;
                 margin: 0 !important;
                 padding: 0 !important;
+                break-after: avoid !important;
                 page-break-after: avoid !important;
+                break-inside: avoid !important;
                 page-break-inside: avoid !important;
             }
         }
     </style>
 </head>
-<body class="{{ $paper === 'a4' ? 'paper-mode-a4' : 'paper-mode-a5' }}">
+<body class="{{ $paper === 'a4' ? 'paper-mode-a4' : ($paper === 'a5-on-a4' ? 'paper-mode-a5-on-a4' : 'paper-mode-a5') }}">
 
     <!-- ── FLOATING TOOLBAR ── -->
     <div class="print-toolbar">
@@ -722,9 +956,11 @@
             <h3>🖨️ Sale Invoice Print</h3>
             <span class="badge-info" id="pages-badge">
                 @if($paper === 'a4')
-                    📑 1 Complete Single Bill (A4 Format)
+                    📑 1 Complete Single Bill (A4 Portrait)
+                @elseif($paper === 'a5-on-a4')
+                    📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? 'Pages' : 'Page' }} ({{ $totalA4SheetsCount }} A4 {{ $totalA4SheetsCount > 1 ? 'Sheets' : 'Sheet' }})
                 @else
-                    📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? 'Pages' : 'Page' }}
+                    📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? 'Pages' : 'Page' }} (Landscape)
                 @endif
             </span>
         </div>
@@ -732,10 +968,13 @@
         <div class="toolbar-controls">
             <!-- Paper Format Switcher -->
             <button type="button" class="btn-toolbar btn-format {{ $paper === 'a5' ? 'active' : '' }}" id="btn-set-a5" onclick="setPaperFormat('a5')">
-                📄 A5 Paper (Landscape)
+                📄 A5 Landscape
+            </button>
+            <button type="button" class="btn-toolbar btn-format {{ $paper === 'a5-on-a4' ? 'active' : '' }}" id="btn-set-a5-on-a4" onclick="setPaperFormat('a5-on-a4')">
+                📄 A5 on A4
             </button>
             <button type="button" class="btn-toolbar btn-format {{ $paper === 'a4' ? 'active' : '' }}" id="btn-set-a4" onclick="setPaperFormat('a4')">
-                📑 A4 Paper (Single Full Bill)
+                📑 A4 Portrait
             </button>
 
             <!-- Download PDF Options -->
@@ -761,11 +1000,41 @@
     <!-- ── PRINT CANVAS ── -->
     <div class="print-canvas" id="main-print-canvas">
 
-        <!-- MODE 1: A5 Landscape Container (Paginated into A5 pages) -->
+        <!-- ── User-Friendly Notice / Help Section for Printers Lacking A5 ── -->
+        <div class="a5-notice-banner {{ $paper === 'a5-on-a4' ? 'notice-info' : '' }}" id="a5-notice-banner" style="{{ $paper === 'a4' ? 'display: none;' : 'display: flex;' }}">
+            <div class="notice-icon" id="notice-icon">{{ $paper === 'a5-on-a4' ? 'ℹ️' : '⚠️' }}</div>
+            <div class="notice-body">
+                <div class="notice-title" id="notice-title">
+                    @if($paper === 'a5-on-a4')
+                        A5 on A4 Mode Active (Fallback for A4-Only Printers)
+                    @else
+                        Printer Driver Paper Size Notice (A5)
+                    @endif
+                </div>
+                <div class="notice-desc" id="notice-desc">
+                    @if($paper === 'a5-on-a4')
+                        The invoice remains true physical A5 size (<strong>210mm × 148mm</strong>) without stretching, positioned at the top of an A4 sheet. Standard A4 printer paper is used. You can cut the page in half along the 148mm mark.
+                    @else
+                        A5 printing requires the printer driver to support <strong>A5</strong> or a custom <strong>148mm × 210mm</strong> paper size.<br>
+                        If A5 is not shown in the printer dialog, add an A5/custom paper form in Windows Printer Server Properties or the printer driver settings. Alternatively, use <strong>"A5 on A4"</strong> above to print without scaling on standard A4 paper.
+                    @endif
+                </div>
+            </div>
+            <button type="button" class="notice-close" onclick="document.getElementById('a5-notice-banner').style.display='none'" title="Dismiss">✕</button>
+        </div>
+
+        <!-- MODE 1 & 3: A5 Landscape / A5 on A4 Container (Paginated into A5 pages, paired 2 per A4 sheet) -->
         <div class="a5-render-container" id="a5-container" style="{{ $paper === 'a4' ? 'display:none;' : 'display:contents;' }}">
-            @foreach($pagesData as $pIdx => $pageData)
-            <div class="a5-page">
-                <div class="inv-border-wrap">
+            @foreach($a4Sheets as $sIdx => $sheetPages)
+            <div class="a5-a4-sheet">
+                @foreach($sheetPages as $pIdxInSheet => $pageData)
+                @if($pIdxInSheet > 0)
+                <div class="a5-a4-cut-guide">
+                    <span>✂ Cut Line (148mm)</span>
+                </div>
+                @endif
+                <div class="a5-page">
+                    <div class="inv-border-wrap">
                     @if($pageData['show_full_header'])
                     <!-- 1. Header Section (Only on Page 1) -->
                     <table class="tbl-header">
@@ -975,6 +1244,17 @@
                 </div>
             </div>
             @endforeach
+
+            @if(count($sheetPages) === 1)
+            <div class="a5-a4-cut-guide">
+                <span>✂ Cut Line (148mm) — True A5 Invoice Above / Blank Lower Half</span>
+            </div>
+            <div class="a5-a4-blank-area">
+                <span>Lower A4 half (blank for clean cutting)</span>
+            </div>
+            @endif
+            </div>
+            @endforeach
         </div>
 
         <!-- MODE 2: A4 Portrait Container (ONE SINGLE COMPLETE BILL) -->
@@ -1171,40 +1451,118 @@
 
     </div>
 
+    {{--
+    ========================================================================================
+    PRINTER DRIVER LIMITATION & WINDOWS CONFIGURATION NOTICE (DEVELOPER REFERENCE)
+    ========================================================================================
+    TECHNICAL LIMITATION:
+    Laravel, Livewire, CSS (@page), and browser JavaScript can define and request the
+    document paper size, but they CANNOT directly query or override physical printer hardware
+    drivers to select unsupported paper sizes. Fake JavaScript APIs like printer.paperSize do
+    not exist in standard web browsers.
+
+    If the operating system or printer driver lacks an "A5" definition:
+    1. The printer driver dialog will default or restrict paper size to A4 or Letter.
+    2. To enable true A5 printing on Windows without driver A5 presets:
+       - Open Windows "Print Management" or "Print Server Properties"
+         (Win + R -> "printui /s /t2").
+       - Check "Create a new form" -> Name: "A5 Custom" or "148x210".
+       - Set Paper Dimensions:
+           Width:  148.0 mm
+           Height: 210.0 mm
+       - Click "Save Form".
+       - In Printer Properties -> Device Settings -> Map printer tray to the new form.
+       - Note: For landscape printing, the browser and printer handle orientation.
+       Do not try to configure Windows printer settings from Laravel.
+    3. FALLBACK: If driver configuration cannot be changed, use the built-in "A5 on A4" mode.
+       This formats the invoice to exact A5 dimensions (210mm x 148mm) on an A4 sheet without
+       scaling, so it can be cut cleanly in half.
+    4. DIRECT/SILENT PRINTING: If programmatic driver control or bypass of the browser print
+       dialog is required, use a dedicated hardware print agent like QZ Tray.
+    ========================================================================================
+    --}}
+
     <!-- ── DYNAMIC SWITCHER & PRINT SCRIPT ── -->
     <script>
         let currentFormat = '{{ $paper }}';
 
-        function setPaperFormat(format) {
-            currentFormat = format;
+        function applyPaperStyle(format) {
             const styleTag = document.getElementById('dynamic-print-style');
-            const a5Container = document.getElementById('a5-container');
-            const a4Container = document.getElementById('a4-container');
-            const btnA5 = document.getElementById('btn-set-a5');
-            const btnA4 = document.getElementById('btn-set-a4');
-            const badge = document.getElementById('pages-badge');
-
+            if (!styleTag) return;
             if (format === 'a4') {
-                document.body.className = 'paper-mode-a4';
-                a5Container.style.display = 'none';
-                a4Container.style.display = 'contents';
-                btnA4.classList.add('active');
-                btnA5.classList.remove('active');
-                badge.innerText = '📑 1 Complete Single Bill (A4 Format)';
                 styleTag.innerHTML = '@page { size: A4 portrait; margin: 8mm; }';
+            } else if (format === 'a5-on-a4') {
+                styleTag.innerHTML = '@page { size: A4 portrait; margin: 0; }';
             } else {
-                document.body.className = 'paper-mode-a5';
-                a5Container.style.display = 'contents';
-                a4Container.style.display = 'none';
-                btnA5.classList.add('active');
-                btnA4.classList.remove('active');
-                badge.innerText = '📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? "Pages" : "Page" }}';
                 styleTag.innerHTML = '@page { size: A5 landscape; margin: 3mm 4mm; }';
             }
         }
 
+        function setPaperFormat(format) {
+            currentFormat = format;
+            const a5Container = document.getElementById('a5-container');
+            const a4Container = document.getElementById('a4-container');
+            const btnA5 = document.getElementById('btn-set-a5');
+            const btnA5onA4 = document.getElementById('btn-set-a5-on-a4');
+            const btnA4 = document.getElementById('btn-set-a4');
+            const badge = document.getElementById('pages-badge');
+            const noticeBanner = document.getElementById('a5-notice-banner');
+            const noticeTitle = document.getElementById('notice-title');
+            const noticeDesc = document.getElementById('notice-desc');
+            const noticeIcon = document.getElementById('notice-icon');
+
+            if (btnA5) btnA5.classList.remove('active');
+            if (btnA5onA4) btnA5onA4.classList.remove('active');
+            if (btnA4) btnA4.classList.remove('active');
+
+            applyPaperStyle(format);
+
+            if (format === 'a4') {
+                document.body.className = 'paper-mode-a4';
+                if (a5Container) a5Container.style.display = 'none';
+                if (a4Container) a4Container.style.display = 'contents';
+                if (btnA4) btnA4.classList.add('active');
+                if (badge) badge.innerText = '📑 1 Complete Single Bill (A4 Portrait)';
+                if (noticeBanner) noticeBanner.style.display = 'none';
+            } else if (format === 'a5-on-a4') {
+                document.body.className = 'paper-mode-a5-on-a4';
+                if (a5Container) a5Container.style.display = 'contents';
+                if (a4Container) a4Container.style.display = 'none';
+                if (btnA5onA4) btnA5onA4.classList.add('active');
+                if (badge) badge.innerText = '📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? "Pages" : "Page" }} ({{ $totalA4SheetsCount }} A4 {{ $totalA4SheetsCount > 1 ? "Sheets" : "Sheet" }})';
+                if (noticeBanner) {
+                    noticeBanner.className = 'a5-notice-banner notice-info';
+                    if (noticeIcon) noticeIcon.innerText = 'ℹ️';
+                    noticeTitle.innerText = 'A5 on A4 Mode Active (2 A5 Pages per A4 Sheet)';
+                    noticeDesc.innerHTML = 'Each A4 sheet fits up to <strong>two A5 pages</strong> (Page 1 on top, Page 2 on bottom) at exact physical dimensions (<strong>210mm × 148mm</strong>) without stretching. After printing, cut along the 148mm dashed line.';
+                    noticeBanner.style.display = 'flex';
+                }
+            } else {
+                // Default: A5 Landscape
+                document.body.className = 'paper-mode-a5';
+                if (a5Container) a5Container.style.display = 'contents';
+                if (a4Container) a4Container.style.display = 'none';
+                if (btnA5) btnA5.classList.add('active');
+                if (badge) badge.innerText = '📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? "Pages" : "Page" }} (Landscape)';
+                if (noticeBanner) {
+                    noticeBanner.className = 'a5-notice-banner';
+                    if (noticeIcon) noticeIcon.innerText = '⚠️';
+                    if (noticeTitle) noticeTitle.innerText = 'Printer Driver Paper Size Notice (A5)';
+                    if (noticeDesc) noticeDesc.innerHTML = 'A5 printing requires the printer driver to support <strong>A5</strong> or a custom <strong>148mm × 210mm</strong> paper size.<br>If A5 is not shown in the printer dialog, add an A5/custom paper form in Windows Printer Server Properties or the printer driver settings. Alternatively, use <strong>"A5 on A4"</strong> above to print without scaling on standard A4 paper.';
+                    noticeBanner.style.display = 'flex';
+                }
+            }
+        }
+
         function triggerPrint() {
-            window.print();
+            // Ensure selected format CSS is active
+            applyPaperStyle(currentFormat);
+            // Allow layout/styles to settle before triggering print dialog
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    window.print();
+                });
+            });
         }
     </script>
 </body>

@@ -5,6 +5,7 @@ namespace App\Livewire\Admin;
 use Livewire\Component;
 use Livewire\WithPagination;
 use App\Models\ReturnSupplier;
+use App\Models\ManualSupplierReturn;
 use App\Models\ProductSupplier;
 use App\Models\PurchaseOrder;
 use Illuminate\Support\Facades\DB;
@@ -20,6 +21,7 @@ class ListSupplierReturn extends Component
 
     use WithPagination;
 
+    public $returnSource = 'system'; // 'system' or 'manual'
     public $search = '';
     public $supplierFilter = '';
     public $purchaseOrderFilter = '';
@@ -29,9 +31,11 @@ class ListSupplierReturn extends Component
     public $perPage = 30;
 
     public $selectedReturn = null;
+    public $isManualSelected = false;
     public $showReturnModal = false;
 
     protected $queryString = [
+        'returnSource' => ['except' => 'system'],
         'search' => ['except' => ''],
         'supplierFilter' => ['except' => ''],
         'purchaseOrderFilter' => ['except' => ''],
@@ -39,6 +43,12 @@ class ListSupplierReturn extends Component
         'dateTo' => ['except' => ''],
         'reasonFilter' => ['except' => ''],
     ];
+
+    public function setReturnSource($source)
+    {
+        $this->returnSource = $source;
+        $this->resetPage();
+    }
 
     public function updatingSearch()
     {
@@ -81,12 +91,21 @@ class ListSupplierReturn extends Component
         $this->resetPage();
     }
 
-    public function viewReturn($returnId)
+    public function viewReturn($returnId, $isManual = false)
     {
-        $this->selectedReturn = ReturnSupplier::with([
-            'purchaseOrder.supplier',
-            'product'
-        ])->find($returnId);
+        $this->isManualSelected = $isManual;
+        if ($isManual) {
+            $this->selectedReturn = ManualSupplierReturn::with([
+                'supplier',
+                'product',
+                'creator'
+            ])->find($returnId);
+        } else {
+            $this->selectedReturn = ReturnSupplier::with([
+                'purchaseOrder.supplier',
+                'product'
+            ])->find($returnId);
+        }
 
         if ($this->selectedReturn) {
             $this->showReturnModal = true;
@@ -98,18 +117,20 @@ class ListSupplierReturn extends Component
     {
         $this->showReturnModal = false;
         $this->selectedReturn = null;
+        $this->isManualSelected = false;
     }
 
-    public function confirmDelete($returnId)
+    public function confirmDelete($returnId, $isManual = false)
     {
         if (!auth()->user()->hasPermission('menu_return_supplier_delete')) {
             $this->dispatch('alert', ['message' => 'You do not have permission to delete return records.', 'type' => 'error']);
             return;
         }
+        $isManualStr = $isManual ? 'true' : 'false';
         $this->js("
             Swal.fire({
                 title: 'Delete Return Record?',
-                text: 'This action cannot be undone! The return record will be permanently removed from the system.',
+                text: 'This action cannot be undone! The return record will be permanently removed and stock restored.',
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
@@ -118,27 +139,30 @@ class ListSupplierReturn extends Component
                 cancelButtonText: 'Cancel'
             }).then((result) => {
                 if (result.isConfirmed) {
-                    \$wire.deleteReturn({$returnId});
+                    \$wire.deleteReturn({$returnId}, {$isManualStr});
                 }
             });
         ");
     }
 
-    public function deleteReturn($returnId)
+    public function deleteReturn($returnId, $isManual = false)
     {
         if (!auth()->user()->hasPermission('menu_return_supplier_delete')) {
             return;
         }
-        DB::transaction(function () use ($returnId) {
-            $return = ReturnSupplier::findOrFail($returnId);
-
-            // Restore stock before deleting
-            $this->restoreProductStock($return);
-
-            $return->delete();
+        DB::transaction(function () use ($returnId, $isManual) {
+            if ($isManual) {
+                $return = ManualSupplierReturn::findOrFail($returnId);
+                $this->restoreManualProductStock($return);
+                $return->delete();
+            } else {
+                $return = ReturnSupplier::findOrFail($returnId);
+                $this->restoreProductStock($return);
+                $return->delete();
+            }
         });
 
-        $this->dispatch('alert', ['message' => 'Return record deleted successfully!', 'type' => 'success']);
+        $this->dispatch('alert', ['message' => 'Return record deleted successfully and inventory restored!', 'type' => 'success']);
     }
 
     private function restoreProductStock($return)
@@ -155,6 +179,21 @@ class ListSupplierReturn extends Component
                 $stock->damage_stock = max(0, $stock->damage_stock - $return->return_quantity);
             }
 
+            $stock->save();
+        }
+    }
+
+    private function restoreManualProductStock($return)
+    {
+        $stock = \App\Models\ProductStock::where('product_id', $return->product_id)->first();
+
+        if ($stock) {
+            if ($return->return_condition === 'damage') {
+                $stock->damage_stock += $return->return_quantity;
+            } else {
+                $stock->available_stock += $return->return_quantity;
+            }
+            $stock->total_stock = ($stock->available_stock ?? 0) + ($stock->damage_stock ?? 0);
             $stock->save();
         }
     }
@@ -198,7 +237,7 @@ class ListSupplierReturn extends Component
     {
         $returns = $this->getReturnsQuery()->get();
 
-        $fileName = "supplier_returns_" . now()->format('Y-m-d') . ".csv";
+        $fileName = ($this->returnSource === 'manual' ? "manual_supplier_returns_" : "supplier_returns_") . now()->format('Y-m-d') . ".csv";
         $headers = [
             "Content-type" => "text/csv",
             "Content-Disposition" => "attachment; filename=$fileName",
@@ -214,7 +253,7 @@ class ListSupplierReturn extends Component
             fputcsv($file, [
                 'Return ID',
                 'Date',
-                'Purchase Order',
+                'Purchase Order / Ref #',
                 'Supplier',
                 'Product Code',
                 'Product Name',
@@ -227,13 +266,18 @@ class ListSupplierReturn extends Component
 
             // Add data
             foreach ($returns as $return) {
+                $orderRef = $this->returnSource === 'manual' ? $return->reference_number : ($return->purchaseOrder->order_code ?? '-');
+                $suppName = $this->returnSource === 'manual' 
+                    ? ($return->supplier->name ?? $return->supplier_name ?? '-') 
+                    : ($return->purchaseOrder->supplier->name ?? '-');
+
                 fputcsv($file, [
                     $return->id,
                     $return->created_at->format('Y-m-d'),
-                    $return->purchaseOrder->order_code,
-                    $return->purchaseOrder->supplier->name,
-                    $return->product->code,
-                    $return->product->name,
+                    $orderRef,
+                    $suppName,
+                    $return->product->code ?? '-',
+                    $return->product->name ?? '-',
                     $return->return_quantity,
                     $return->unit_price,
                     $return->total_amount,
@@ -250,6 +294,37 @@ class ListSupplierReturn extends Component
 
     private function getReturnsQuery()
     {
+        if ($this->returnSource === 'manual') {
+            return ManualSupplierReturn::with(['supplier', 'product', 'creator'])
+                ->when($this->search, function ($query) {
+                    $search = '%' . $this->search . '%';
+                    $query->where(function ($q) use ($search) {
+                        $q->where('reference_number', 'like', $search)
+                            ->orWhere('supplier_name', 'like', $search)
+                            ->orWhereHas('product', function ($pq) use ($search) {
+                                $pq->where('name', 'like', $search)
+                                    ->orWhere('code', 'like', $search);
+                            })
+                            ->orWhereHas('supplier', function ($sq) use ($search) {
+                                $sq->where('name', 'like', $search);
+                            });
+                    });
+                })
+                ->when($this->supplierFilter, function ($query) {
+                    $query->where('supplier_id', $this->supplierFilter);
+                })
+                ->when($this->dateFrom, function ($query) {
+                    $query->whereDate('return_date', '>=', $this->dateFrom);
+                })
+                ->when($this->dateTo, function ($query) {
+                    $query->whereDate('return_date', '<=', $this->dateTo);
+                })
+                ->when($this->reasonFilter, function ($query) {
+                    $query->where('return_reason', $this->reasonFilter);
+                })
+                ->orderBy('created_at', 'desc');
+        }
+
         return ReturnSupplier::with(['purchaseOrder.supplier', 'product'])
             ->when($this->search, function ($query) {
                 $query->whereHas('product', function ($q) {
@@ -281,6 +356,27 @@ class ListSupplierReturn extends Component
 
     public function getSummaryStats()
     {
+        if ($this->returnSource === 'manual') {
+            $query = ManualSupplierReturn::query();
+
+            if ($this->dateFrom) {
+                $query->whereDate('return_date', '>=', $this->dateFrom);
+            }
+            if ($this->dateTo) {
+                $query->whereDate('return_date', '<=', $this->dateTo);
+            }
+            if ($this->supplierFilter) {
+                $query->where('supplier_id', $this->supplierFilter);
+            }
+
+            return [
+                'total_returns' => $query->count(),
+                'total_quantity' => $query->sum('return_quantity'),
+                'total_amount' => $query->sum('total_amount'),
+                'damaged_returns' => $query->clone()->where('return_reason', 'damaged')->count(),
+            ];
+        }
+
         $query = ReturnSupplier::query();
 
         if ($this->dateFrom) {

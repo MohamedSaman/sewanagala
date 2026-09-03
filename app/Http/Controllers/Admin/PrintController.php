@@ -16,7 +16,7 @@ class PrintController extends Controller
             $q->with('product');
         }])->findOrFail($id);
 
-        $paper = in_array(strtolower($request->query('paper', 'a5')), ['a4', 'a5']) ? strtolower($request->query('paper', 'a5')) : 'a5';
+        $paper = in_array(strtolower($request->query('paper', 'a5')), ['a4', 'a5', 'a5-on-a4']) ? strtolower($request->query('paper', 'a5')) : 'a5';
         $viewOnly = $request->has('view_only');
 
         // Return the print view
