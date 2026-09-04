@@ -452,20 +452,23 @@ class StoreBilling extends Component
     public function loadCategories()
     {
         $this->categories = CategoryList::orderBy('category_name')->get();
-        $this->sites = ProductDetail::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site')->toArray();
+        $this->sites = ProductStock::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site')->toArray();
     }
 
     // Load products for grid view
     public function loadProducts()
     {
-        $query = ProductDetail::with(['stock', 'price']);
+        $query = ProductDetail::with(['stocks', 'price']);
 
         if ($this->selectedCategory) {
             $query->where('category_id', $this->selectedCategory);
         }
 
-        if ($this->selectedSite !== '') {
-            $query->where('site', $this->selectedSite);
+        $selectedSite = $this->selectedSite;
+        if ($selectedSite !== '') {
+            $query->whereHas('stocks', function ($q) use ($selectedSite) {
+                $q->where('site', $selectedSite);
+            });
         }
 
         if (strlen($this->search) >= 2) {
@@ -476,26 +479,52 @@ class StoreBilling extends Component
             });
         }
 
-        $this->products = $query->take(50)->get()->map(function ($product) {
-            $availableStock = (int) ($product->stock->available_stock ?? 0);
-
-            if ($this->isEditMode) {
-                $availableStock += (int) collect($this->cart)->where('id', $product->id)->sum('quantity');
+        $productList = [];
+        foreach ($query->take(60)->get() as $product) {
+            $stocks = $product->stocks;
+            if ($selectedSite !== '') {
+                $stocks = $stocks->where('site', $selectedSite);
             }
 
-            return [
-                'id' => $product->id,
-                'name' => $product->name,
-                'code' => $product->code,
-                'model' => $product->model,
-                'site' => $product->site ?? '',
-                'price' => $product->price->selling_price ?? 0,
-                'stock' => $availableStock,
-                'sold' => $product->stock->sold_count ?? 0,
-                'image' => $product->image,
-                'category_id' => $product->category_id
-            ];
-        })->toArray();
+            if ($stocks->isEmpty()) {
+                $productList[] = [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'model' => $product->model,
+                    'site' => $selectedSite ?: 'Store',
+                    'price' => $product->price->selling_price ?? 0,
+                    'stock' => 0,
+                    'sold' => 0,
+                    'image' => $product->image,
+                    'category_id' => $product->category_id
+                ];
+            } else {
+                foreach ($stocks as $stockRecord) {
+                    $siteName = $stockRecord->site ?? 'Store';
+                    $availableStock = (int) ($stockRecord->available_stock ?? 0);
+
+                    if ($this->isEditMode) {
+                        $availableStock += (int) collect($this->cart)->filter(fn($i) => $i['id'] == $product->id && ($i['site'] ?? 'Store') === $siteName)->sum('quantity');
+                    }
+
+                    $productList[] = [
+                        'id' => $product->id,
+                        'name' => $product->name,
+                        'code' => $product->code,
+                        'model' => $product->model,
+                        'site' => $siteName,
+                        'price' => $product->price->selling_price ?? 0,
+                        'stock' => $availableStock,
+                        'sold' => $stockRecord->sold_count ?? 0,
+                        'image' => $product->image,
+                        'category_id' => $product->category_id
+                    ];
+                }
+            }
+        }
+
+        $this->products = $productList;
     }
 
     // Select category filter
@@ -823,25 +852,57 @@ class StoreBilling extends Component
 
         // Also populate search results for autocomplete dropdown
         if (strlen($this->search) >= 2) {
-            $this->searchResults = ProductDetail::with(['stock', 'price'])
-                ->where('name', 'like', '%' . $this->search . '%')
-                ->orWhere('code', 'like', '%' . $this->search . '%')
-                ->orWhere('model', 'like', '%' . $this->search . '%')
-                ->take(10)
-                ->get()
-                ->map(function ($product) {
-                    return [
+            $selectedSite = $this->selectedSite;
+            $searchQuery = ProductDetail::with(['stocks', 'price'])
+                ->where(function ($q) {
+                    $q->where('name', 'like', '%' . $this->search . '%')
+                        ->orWhere('code', 'like', '%' . $this->search . '%')
+                        ->orWhere('model', 'like', '%' . $this->search . '%');
+                });
+
+            if ($selectedSite !== '') {
+                $searchQuery->whereHas('stocks', function ($q) use ($selectedSite) {
+                    $q->where('site', $selectedSite);
+                });
+            }
+
+            $results = [];
+            foreach ($searchQuery->take(20)->get() as $product) {
+                $stocks = $product->stocks;
+                if ($selectedSite !== '') {
+                    $stocks = $stocks->where('site', $selectedSite);
+                }
+
+                if ($stocks->isEmpty()) {
+                    $results[] = [
                         'id' => $product->id,
                         'name' => $product->name,
                         'code' => $product->code,
                         'model' => $product->model,
-                        'site' => $product->site ?? '',
+                        'site' => $selectedSite ?: 'Store',
                         'price' => $product->price->selling_price ?? 0,
-                        'stock' => $product->stock->available_stock ?? 0,
-                        'sold' => $product->stock->sold_count ?? 0,
+                        'stock' => 0,
+                        'sold' => 0,
                         'image' => $product->image
                     ];
-                });
+                } else {
+                    foreach ($stocks as $stockRecord) {
+                        $results[] = [
+                            'id' => $product->id,
+                            'name' => $product->name,
+                            'code' => $product->code,
+                            'model' => $product->model,
+                            'site' => $stockRecord->site ?? 'Store',
+                            'price' => $product->price->selling_price ?? 0,
+                            'stock' => $stockRecord->available_stock ?? 0,
+                            'sold' => $stockRecord->sold_count ?? 0,
+                            'image' => $product->image
+                        ];
+                    }
+                }
+            }
+
+            $this->searchResults = $results;
         } else {
             $this->searchResults = [];
         }
@@ -927,7 +988,10 @@ class StoreBilling extends Component
             return;
         }
 
-        $existing = collect($this->cart)->firstWhere('id', $product['id']);
+        $targetSite = $product['site'] ?? 'Store';
+        $existing = collect($this->cart)->first(function ($item) use ($product, $targetSite) {
+            return $item['id'] == $product['id'] && ($item['site'] ?? 'Store') === $targetSite;
+        });
 
         if ($existing) {
             // Check if adding more exceeds stock
@@ -936,8 +1000,8 @@ class StoreBilling extends Component
                 return;
             }
 
-            $this->cart = collect($this->cart)->map(function ($item) use ($product) {
-                if ($item['id'] == $product['id']) {
+            $this->cart = collect($this->cart)->map(function ($item) use ($product, $targetSite) {
+                if ($item['id'] == $product['id'] && ($item['site'] ?? 'Store') === $targetSite) {
                     $item['quantity'] += 1;
                     $item['total'] = ($item['price'] - $item['discount']) * $item['quantity'];
                     // Ensure key exists
@@ -949,11 +1013,10 @@ class StoreBilling extends Component
             })->toArray();
 
             // Check if quantity spans multiple batch prices and split if needed
-            $this->checkAndSplitCartByBatchPrices($product['id']);
+            $this->checkAndSplitCartByBatchPrices($product['id'], $targetSite);
         } else {
             $productDetail = ProductDetail::find($product['id']);
             $discountPrice = $productDetail->price->discount_price ?? 0;
-            $siteValue = $product['site'] ?? ($productDetail->site ?? '');
 
             $newItem = [
                 'key' => uniqid('cart_'),  // Add unique key to maintain state
@@ -961,7 +1024,7 @@ class StoreBilling extends Component
                 'name' => $product['name'],
                 'code' => $product['code'],
                 'model' => $product['model'] ?? '',
-                'site' => $siteValue,
+                'site' => $targetSite,
                 'price' => $product['price'],
                 'quantity' => 1,
                 'discount' => $discountPrice,
@@ -994,7 +1057,7 @@ class StoreBilling extends Component
         $this->cart[$index]['total'] = ($this->cart[$index]['price'] - $this->cart[$index]['discount']) * $quantity;
 
         // Check if quantity spans multiple batch prices and split if needed
-        $this->checkAndSplitCartByBatchPrices($this->cart[$index]['id']);
+        $this->checkAndSplitCartByBatchPrices($this->cart[$index]['id'], $this->cart[$index]['site'] ?? null);
         $this->syncPaymentToTotal();
 
         if ($this->isEditMode) {
@@ -1017,7 +1080,7 @@ class StoreBilling extends Component
         $this->cart[$index]['total'] = ($this->cart[$index]['price'] - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
 
         // Check if quantity spans multiple batch prices and split if needed
-        $this->checkAndSplitCartByBatchPrices($this->cart[$index]['id']);
+        $this->checkAndSplitCartByBatchPrices($this->cart[$index]['id'], $this->cart[$index]['site'] ?? null);
         $this->syncPaymentToTotal();
 
         if ($this->isEditMode) {
@@ -1394,7 +1457,7 @@ class StoreBilling extends Component
 
                 // Deduct stock using FIFO batch system first
                 try {
-                    $result = FIFOStockService::deductStock($item['id'], $item['quantity']);
+                    $result = FIFOStockService::deductStock($item['id'], $item['quantity'], $item['site'] ?? null);
 
                     // Group deductions by selling price to combine same-price batches
                     $groupedByPrice = [];
@@ -1447,10 +1510,12 @@ class StoreBilling extends Component
                         'total' => $item['total']
                     ]);
 
-                    $product = ProductDetail::find($item['id']);
-                    if ($product && $product->stock) {
-                        $product->stock->available_stock -= $item['quantity'];
-                        $product->stock->save();
+                    $targetStock = ProductStock::where('product_id', $item['id'])
+                        ->where('site', $item['site'] ?? 'Store')
+                        ->first() ?? ProductStock::where('product_id', $item['id'])->first();
+                    if ($targetStock) {
+                        $targetStock->available_stock -= $item['quantity'];
+                        $targetStock->save();
                     }
                 }
             }
@@ -2204,16 +2269,22 @@ class StoreBilling extends Component
      * Check if product quantity spans multiple batches with different prices
      * and automatically split cart items accordingly
      */
-    private function checkAndSplitCartByBatchPrices($productId)
+    private function checkAndSplitCartByBatchPrices($productId, $site = null)
     {
-        // Get all cart items for this product
-        $productItems = collect($this->cart)->filter(function ($item) use ($productId) {
-            return $item['id'] == $productId;
+        // Get all cart items for this product and site
+        $productItems = collect($this->cart)->filter(function ($item) use ($productId, $site) {
+            $matchProduct = $item['id'] == $productId;
+            if ($site !== null) {
+                return $matchProduct && (($item['site'] ?? 'Store') === $site);
+            }
+            return $matchProduct;
         });
 
         if ($productItems->isEmpty()) {
             return;
         }
+
+        $itemSite = $site ?? ($productItems->first()['site'] ?? 'Store');
 
         // Calculate total quantity for this product in cart
         $totalQuantity = $productItems->sum('quantity');
@@ -2256,10 +2327,10 @@ class StoreBilling extends Component
             return;
         }
 
-        // Remove all existing cart items for this product
+        // Remove existing cart items for this product and site
         $firstItem = $productItems->first();
-        $this->cart = collect($this->cart)->filter(function ($item) use ($productId) {
-            return $item['id'] != $productId;
+        $this->cart = collect($this->cart)->filter(function ($item) use ($productId, $itemSite) {
+            return !($item['id'] == $productId && (($item['site'] ?? 'Store') === $itemSite));
         })->values()->toArray();
 
         // Add new cart items - one per unique price
@@ -2270,7 +2341,7 @@ class StoreBilling extends Component
                 'name' => $firstItem['name'],
                 'code' => $firstItem['code'],
                 'model' => $firstItem['model'],
-                'site' => $firstItem['site'] ?? '',
+                'site' => $itemSite,
                 'price' => $price,
                 'quantity' => $qty,
                 'discount' => $firstItem['discount'],

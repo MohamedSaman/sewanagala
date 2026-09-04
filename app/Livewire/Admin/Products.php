@@ -44,18 +44,22 @@ class Products extends Component
     // Create form fields
     public $code, $name, $model, $brand, $category, $image, $description, $barcode, $status, $supplier, $site = 'Store';
     public $supplier_price, $selling_price, $discount_price, $available_stock, $damage_stock;
+    public $isExistingProductMode = false, $selectedExistingProductId = null, $existingProductInfo = null;
 
     // Import file
     public $importFile;
 
     // Edit form fields
-    public $editId, $editCode, $editName, $editModel, $editBrand, $editCategory, $editImage, $existingImage,
+    public $editId, $editStockId = null, $editCode, $editName, $editModel, $editBrand, $editCategory, $editImage, $existingImage,
         $editDescription, $editBarcode, $editStatus, $editSupplierPrice, $editSellingPrice,
         $editDiscountPrice, $editDamageStock, $editSite = '';
 
     // Stock Adjustment fields
-    public $adjustmentProductId, $adjustmentProductName, $adjustmentAvailableStock, $adjustmentDamageStock,
+    public $adjustmentProductId, $adjustmentStockId = null, $adjustmentProductName, $adjustmentAvailableStock, $adjustmentDamageStock,
         $damageQuantity, $availableQuantity;
+
+    // Add Site Stock modal fields
+    public $addSiteProductId = null, $addSiteProductName = '', $addSiteProductCode = '', $newSiteName = '', $newSiteStock = 0;
 
     // View Product
     public $viewProduct;
@@ -211,7 +215,7 @@ class Products extends Component
         $brands = BrandList::orderBy('brand_name')->get();
         $categories = CategoryList::orderBy('category_name')->get();
         $suppliers = ProductSupplier::orderBy('name')->get();
-        $sites = ProductDetail::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site');
+        $sites = ProductStock::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site');
 
         $query = ProductDetail::join('product_prices', 'product_details.id', '=', 'product_prices.product_id')
             ->join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
@@ -219,6 +223,7 @@ class Products extends Component
             ->leftJoin('category_lists', 'product_details.category_id', '=', 'category_lists.id')
             ->select(
                 'product_details.id',
+                'product_stocks.id as stock_id',
                 'product_details.code',
                 'product_details.name as product_name',
                 'product_details.model',
@@ -232,7 +237,7 @@ class Products extends Component
                 'product_stocks.available_stock',
                 'product_stocks.damage_stock',
                 'product_stocks.total_stock',
-                'product_details.site',
+                'product_stocks.site',
                 'brand_lists.brand_name as brand',
                 'category_lists.category_name as category'
             )
@@ -249,7 +254,7 @@ class Products extends Component
             ->orderBy('product_details.code', 'asc');
 
         if ($this->siteFilter !== '') {
-            $query->where('product_details.site', $this->siteFilter);
+            $query->where('product_stocks.site', $this->siteFilter);
         }
 
         $totalProductCodes = (clone $query)->count('product_details.id');
@@ -272,6 +277,7 @@ class Products extends Component
             'categories' => $categories,
             'suppliers' => $suppliers,
             'sites' => $sites,
+            'existingProducts' => ProductDetail::select('id', 'name', 'code')->orderBy('name')->get(),
             'totalProductCodes' => $totalProductCodes,
             'totalStockValue' => $totalStockValue,
         ])->layout($this->layout);
@@ -422,10 +428,144 @@ class Products extends Component
         $this->js("$('#createProductModal').modal('show')");
     }
 
+    public function updatedSelectedExistingProductId($productId)
+    {
+        if ($productId) {
+            $product = ProductDetail::with(['price', 'stocks'])->find($productId);
+            if ($product) {
+                $this->code = $product->code;
+                $this->name = $product->name;
+                $this->model = $product->model;
+                $this->brand = $product->brand_id;
+                $this->category = $product->category_id;
+                $this->description = $product->description;
+                $this->barcode = $product->barcode;
+                $this->supplier_price = $product->price->supplier_price ?? 0;
+                $this->selling_price = $product->price->selling_price ?? 0;
+                $this->discount_price = $product->price->discount_price ?? 0;
+                $this->existingProductInfo = [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'existing_sites' => $product->stocks->map(fn($s) => ($s->site ?: 'Store') . ' (' . $s->available_stock . ')')->join(', ')
+                ];
+                $this->site = '';
+                $this->available_stock = 0;
+                $this->damage_stock = 0;
+            }
+        } else {
+            $this->existingProductInfo = null;
+        }
+    }
+
+    public function updatedCode($value)
+    {
+        if (!empty($value)) {
+            $product = ProductDetail::with(['price', 'stocks'])->where('code', trim($value))->first();
+            if ($product) {
+                $this->isExistingProductMode = true;
+                $this->selectedExistingProductId = $product->id;
+                $this->name = $product->name;
+                $this->model = $product->model;
+                $this->brand = $product->brand_id;
+                $this->category = $product->category_id;
+                $this->description = $product->description;
+                $this->barcode = $product->barcode;
+                $this->supplier_price = $product->price->supplier_price ?? 0;
+                $this->selling_price = $product->price->selling_price ?? 0;
+                $this->discount_price = $product->price->discount_price ?? 0;
+                $this->existingProductInfo = [
+                    'id' => $product->id,
+                    'name' => $product->name,
+                    'code' => $product->code,
+                    'existing_sites' => $product->stocks->map(fn($s) => ($s->site ?: 'Store') . ' (' . $s->available_stock . ')')->join(', ')
+                ];
+            } else {
+                if ($this->isExistingProductMode) {
+                    $this->isExistingProductMode = false;
+                    $this->existingProductInfo = null;
+                    $this->selectedExistingProductId = null;
+                }
+            }
+        }
+    }
+
     // 🔹 Create Product
     public function createProduct()
     {
-        // Validate the form data
+        // Check if adding stock for an existing product (different site)
+        $existingProduct = null;
+        if (!empty($this->code)) {
+            $existingProduct = ProductDetail::where('code', trim($this->code))->first();
+        }
+
+        if ($existingProduct) {
+            $this->validate([
+                'site' => 'required|string|max:100',
+                'available_stock' => 'required|integer|min:0',
+                'damage_stock' => 'nullable|integer|min:0',
+            ], [
+                'site.required' => 'Please enter a site name for this stock.',
+                'available_stock.required' => 'Available stock is required.',
+                'available_stock.integer' => 'Available stock must be a whole number.',
+            ]);
+
+            $siteName = trim($this->site);
+            $stockExists = ProductStock::where('product_id', $existingProduct->id)
+                ->where('site', $siteName)
+                ->exists();
+
+            if ($stockExists) {
+                $this->addError('site', "This product already has stock recorded for site '{$siteName}'. Please use Stock Adjustment to adjust it.");
+                return;
+            }
+
+            try {
+                $initialStock = (int) ($this->available_stock ?? 0);
+                $damageStock = (int) ($this->damage_stock ?? 0);
+
+                ProductStock::create([
+                    'product_id' => $existingProduct->id,
+                    'site' => $siteName,
+                    'available_stock' => $initialStock,
+                    'damage_stock' => $damageStock,
+                    'total_stock' => $initialStock + $damageStock,
+                    'sold_count' => 0,
+                    'restocked_quantity' => $initialStock,
+                ]);
+
+                if ($initialStock > 0) {
+                    $existingProduct->load('price');
+                    $supplierPrice = !empty($this->supplier_price) ? (float)$this->supplier_price : ($existingProduct->price->supplier_price ?? 0);
+                    $sellingPrice = !empty($this->selling_price) ? (float)$this->selling_price : ($existingProduct->price->selling_price ?? 0);
+
+                    ProductBatch::create([
+                        'product_id' => $existingProduct->id,
+                        'batch_number' => ProductBatch::generateBatchNumber($existingProduct->id),
+                        'supplier_price' => $supplierPrice,
+                        'selling_price' => $sellingPrice,
+                        'quantity' => $initialStock,
+                        'remaining_quantity' => $initialStock,
+                        'received_date' => now(),
+                        'status' => 'active',
+                    ]);
+                }
+
+                $this->resetForm();
+                $this->js("$('#createProductModal').modal('hide')");
+                $this->js("Swal.fire('Success!', 'Stock for site \"{$siteName}\" added to product \"{$existingProduct->name}\" successfully!', 'success')");
+
+                ProductApiController::clearCache();
+                $this->dispatch('refreshPage');
+                return;
+            } catch (\Exception $e) {
+                Log::error("Add site stock to existing product failed: " . $e->getMessage());
+                $this->js("Swal.fire('Error!', 'Failed to add site stock: " . addslashes($e->getMessage()) . "', 'error')");
+                return;
+            }
+        }
+
+        // Validate the form data for new product
         $validatedData = $this->validate();
 
         try {
@@ -448,7 +588,6 @@ class Products extends Component
                 'status' => 'active',
                 'brand_id' => $this->brand,
                 'category_id' => $this->category,
-                'site' => $this->site ?: 'Store',
             ]);
 
             ProductPrice::create([
@@ -460,6 +599,7 @@ class Products extends Component
 
             ProductStock::create([
                 'product_id' => $product->id,
+                'site' => $this->site ?: 'Store',
                 'available_stock' => $this->available_stock ?? 0,
                 'damage_stock' => $this->damage_stock ?? 0,
                 'total_stock' => ($this->available_stock ?? 0) + ($this->damage_stock ?? 0),
@@ -592,22 +732,30 @@ class Products extends Component
             'damage_stock',
             'site',
             'editSite',
+            'isExistingProductMode',
+            'selectedExistingProductId',
+            'existingProductInfo',
         ]);
         $this->resetValidation();
     }
 
     // 🔹 Edit Product
-    public function editProduct($id)
+    public function editProduct($id, $stockId = null)
     {
-        $product = ProductDetail::with(['price', 'stock'])->findOrFail($id);
+        $product = ProductDetail::with(['price', 'stocks'])->findOrFail($id);
 
         $this->editId = $product->id;
+        $this->editStockId = $stockId;
         $this->editCode = $product->code;
         $this->editName = $product->name;
         $this->editModel = $product->model;
         $this->editBrand = $product->brand_id;
         $this->editCategory = $product->category_id;
-        $this->editSite = $product->site ?? 'Store';
+
+        $stock = $stockId ? ProductStock::find($stockId) : $product->stocks->first();
+        $this->editSite = $stock ? $stock->site : 'Store';
+        $this->editDamageStock = $stock ? ($stock->damage_stock ?? 0) : 0;
+
         $this->existingImage = $product->image;
         $this->editDescription = $product->description;
         $this->editBarcode = $product->barcode;
@@ -615,7 +763,6 @@ class Products extends Component
         $this->editSupplierPrice = $product->price->supplier_price ?? 0;
         $this->editSellingPrice = $product->price->selling_price ?? 0;
         $this->editDiscountPrice = $product->price->discount_price ?? 0;
-        $this->editDamageStock = $product->stock->damage_stock ?? 0;
 
         $this->resetValidation();
 
@@ -653,6 +800,21 @@ class Products extends Component
         // Validate the form data
         $validatedData = $this->validate($this->updateRules());
 
+        $targetSite = trim($this->editSite ?: 'Store');
+
+        // Verify that this product doesn't already have another stock record for this site
+        $duplicateStock = ProductStock::where('product_id', $this->editId)
+            ->where('site', $targetSite)
+            ->when($this->editStockId, function ($q) {
+                $q->where('id', '!=', $this->editStockId);
+            })
+            ->first();
+
+        if ($duplicateStock) {
+            $this->addError('editSite', "A stock entry for site '{$targetSite}' already exists for this product.");
+            return;
+        }
+
         try {
             $product = ProductDetail::findOrFail($this->editId);
 
@@ -668,7 +830,6 @@ class Products extends Component
                 'model' => $this->editModel,
                 'brand_id' => $this->editBrand,
                 'category_id' => $this->editCategory,
-                'site' => $this->editSite ?: 'Store',
                 'image' => $imagePath,
                 'description' => $this->editDescription,
                 'barcode' => $this->editBarcode,
@@ -684,12 +845,24 @@ class Products extends Component
                 ]
             );
 
-            $product->stock()->updateOrCreate(
-                ['product_id' => $product->id],
-                [
+            // Update specific stock record if editStockId is provided, or the first stock
+            $stock = $this->editStockId ? ProductStock::find($this->editStockId) : ProductStock::where('product_id', $product->id)->first();
+            if ($stock) {
+                $stock->site = $targetSite;
+                $stock->damage_stock = $this->editDamageStock;
+                $stock->total_stock = $stock->available_stock + $stock->damage_stock;
+                $stock->save();
+            } else {
+                ProductStock::create([
+                    'product_id' => $product->id,
+                    'site' => $targetSite,
+                    'available_stock' => 0,
                     'damage_stock' => $this->editDamageStock,
-                ]
-            );
+                    'total_stock' => $this->editDamageStock,
+                    'sold_count' => 0,
+                    'restocked_quantity' => 0,
+                ]);
+            }
 
             // Clear cache for client-side refresh
             ProductApiController::clearCache();
@@ -701,7 +874,7 @@ class Products extends Component
             Log::error("Update product failed: " . $e->getMessage(), [
                 'trace' => $e->getTraceAsString(),
             ]);
-            $this->js("Swal.fire('Error!', 'Failed to update product. Please try again.', 'error')");
+            $this->js("Swal.fire('Error!', 'Failed to update product: " . addslashes($e->getMessage()) . "', 'error')");
         }
     }
 
@@ -782,15 +955,97 @@ class Products extends Component
         $this->js("$('#viewProductModal').modal('show')");
     }
 
-    // 🔹 Open Stock Adjustment Modal
-    public function openStockAdjustment($id)
+    // 🔹 Open Add Site Stock Modal
+    public function openAddSiteStock($productId)
     {
-        $product = ProductDetail::with(['stock'])->findOrFail($id);
+        $product = ProductDetail::with('stocks')->findOrFail($productId);
+        $this->addSiteProductId = $product->id;
+        $this->addSiteProductName = $product->name;
+        $this->addSiteProductCode = $product->code;
+        $this->newSiteName = '';
+        $this->newSiteStock = 0;
+
+        $this->resetValidation();
+        $this->js("
+            setTimeout(() => {
+                const modal = new bootstrap.Modal(document.getElementById('addSiteStockModal'));
+                modal.show();
+            }, 100);
+        ");
+    }
+
+    // 🔹 Save New Site Stock for Product
+    public function saveSiteStock()
+    {
+        $this->validate([
+            'addSiteProductId' => 'required|exists:product_details,id',
+            'newSiteName' => 'required|string|max:100',
+            'newSiteStock' => 'required|integer|min:0',
+        ], [
+            'newSiteName.required' => 'Please enter a site name.',
+            'newSiteStock.required' => 'Please enter initial stock quantity.',
+        ]);
+
+        $site = trim($this->newSiteName);
+        $exists = ProductStock::where('product_id', $this->addSiteProductId)
+            ->where('site', $site)
+            ->exists();
+
+        if ($exists) {
+            $this->addError('newSiteName', "This product already has stock recorded for site '{$site}'.");
+            return;
+        }
+
+        try {
+            $initialStock = (int) $this->newSiteStock;
+            ProductStock::create([
+                'product_id' => $this->addSiteProductId,
+                'site' => $site,
+                'available_stock' => $initialStock,
+                'damage_stock' => 0,
+                'total_stock' => $initialStock,
+                'sold_count' => 0,
+                'restocked_quantity' => $initialStock,
+            ]);
+
+            if ($initialStock > 0) {
+                $product = ProductDetail::with('price')->find($this->addSiteProductId);
+                $supplierPrice = $product->price->supplier_price ?? 0;
+                $sellingPrice = $product->price->selling_price ?? 0;
+                ProductBatch::create([
+                    'product_id' => $this->addSiteProductId,
+                    'batch_number' => ProductBatch::generateBatchNumber($this->addSiteProductId),
+                    'supplier_price' => $supplierPrice,
+                    'selling_price' => $sellingPrice,
+                    'quantity' => $initialStock,
+                    'remaining_quantity' => $initialStock,
+                    'received_date' => now(),
+                    'status' => 'active',
+                ]);
+            }
+
+            ProductApiController::clearCache();
+
+            $this->js("$('#addSiteStockModal').modal('hide')");
+            $this->js("Swal.fire('Success!', 'Stock added for site {$site} successfully!', 'success')");
+            $this->dispatch('refreshPage');
+        } catch (\Exception $e) {
+            Log::error("Add site stock failed: " . $e->getMessage());
+            $this->js("Swal.fire('Error!', 'Failed to add site stock: " . addslashes($e->getMessage()) . "', 'error')");
+        }
+    }
+
+    // 🔹 Open Stock Adjustment Modal
+    public function openStockAdjustment($id, $stockId = null)
+    {
+        $product = ProductDetail::with(['stocks'])->findOrFail($id);
+        $stock = $stockId ? ProductStock::find($stockId) : $product->stocks->first();
 
         $this->adjustmentProductId = $product->id;
-        $this->adjustmentProductName = $product->name;
-        $this->adjustmentAvailableStock = $product->stock->available_stock ?? 0;
-        $this->adjustmentDamageStock = $product->stock->damage_stock ?? 0;
+        $this->adjustmentStockId = $stock ? $stock->id : null;
+        $this->adjustmentProductName = $product->name . ($stock ? " (Site: {$stock->site})" : "");
+        $this->adjustmentAvailableStock = $stock ? $stock->available_stock : 0;
+        $this->adjustmentDamageStock = $stock ? $stock->damage_stock : 0;
         $this->damageQuantity = null; // Clear damage input
         $this->availableQuantity = null; // Clear available input
 
@@ -806,7 +1061,6 @@ class Products extends Component
         ];
     }
 
-
     // 🔹 Add Damage Stock (Deduct from Available Stock and Batches using FIFO)
     public function addDamageStock()
     {
@@ -819,12 +1073,13 @@ class Products extends Component
 
         DB::beginTransaction();
         try {
-            $product = ProductDetail::with(['stock', 'price'])->findOrFail($this->adjustmentProductId);
-            $stock = $product->stock;
+            $product = ProductDetail::with(['stocks', 'price'])->findOrFail($this->adjustmentProductId);
+            $stock = $this->adjustmentStockId ? ProductStock::find($this->adjustmentStockId) : $product->stocks->first();
 
             if (!$stock) {
                 $stock = ProductStock::create([
                     'product_id' => $product->id,
+                    'site' => 'Store',
                     'available_stock' => 0,
                     'damage_stock' => 0,
                     'total_stock' => 0,
@@ -984,12 +1239,13 @@ class Products extends Component
 
         DB::beginTransaction();
         try {
-            $product = ProductDetail::with(['stock'])->findOrFail($this->adjustmentProductId);
-            $stock = $product->stock;
+            $product = ProductDetail::with(['stocks'])->findOrFail($this->adjustmentProductId);
+            $stock = $this->adjustmentStockId ? ProductStock::find($this->adjustmentStockId) : $product->stocks->first();
 
             if (!$stock) {
                 $stock = ProductStock::create([
                     'product_id' => $product->id,
+                    'site' => 'Store',
                     'available_stock' => 0,
                     'damage_stock' => 0,
                     'total_stock' => 0,

@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class ProductDetail extends Model
@@ -22,7 +23,6 @@ class ProductDetail extends Model
         'brand_id',
         'category_id',
         'supplier_id',
-        'site',
     ];
 
     public function price(): HasOne
@@ -33,6 +33,45 @@ class ProductDetail extends Model
     public function stock(): HasOne
     {
         return $this->hasOne(ProductStock::class, 'product_id');
+    }
+
+    public function stocks(): HasMany
+    {
+        return $this->hasMany(ProductStock::class, 'product_id');
+    }
+
+    /**
+     * Get the stock for a specific site or default
+     */
+    public function stockForSite(?string $site = null): ?ProductStock
+    {
+        $site = $site ?: 'Store';
+        return $this->stocks()->where('site', $site)->first();
+    }
+
+    /**
+     * Backward-compatible site attribute accessor
+     */
+    public function getSiteAttribute(): string
+    {
+        if ($this->relationLoaded('stock') && $this->stock) {
+            return $this->stock->site ?? 'Store';
+        }
+        if ($this->relationLoaded('stocks') && $this->stocks->isNotEmpty()) {
+            return $this->stocks->pluck('site')->filter()->unique()->implode(', ') ?: 'Store';
+        }
+        return $this->stocks()->pluck('site')->filter()->unique()->implode(', ') ?: 'Store';
+    }
+
+    /**
+     * Total available stock across all sites
+     */
+    public function getTotalAvailableStockAttribute(): int
+    {
+        if ($this->relationLoaded('stocks')) {
+            return (int) $this->stocks->sum('available_stock');
+        }
+        return (int) $this->stocks()->sum('available_stock');
     }
 
     public function brand(): BelongsTo

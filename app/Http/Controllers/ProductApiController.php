@@ -38,6 +38,7 @@ class ProductApiController extends Controller
                     'product_stocks.available_stock',
                     'product_stocks.damage_stock',
                     'product_stocks.total_stock',
+                    'product_stocks.site',
                     'brand_lists.brand_name as brand',
                     'category_lists.category_name as category'
                 )

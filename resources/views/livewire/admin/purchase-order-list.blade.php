@@ -497,6 +497,7 @@
                             <tr>
                                 <th style="width: 100px;">Code</th>
                                 <th style="width: 150px;">Product</th>
+                                <th style="width: 110px;">Site</th>
                                 <th style="width: 80px;">Ord Qty</th>
                                 <th style="width: 80px;">Recv Qty</th>
                                 <th style="width: 150px;">Supplier Price</th>
@@ -570,6 +571,13 @@
                                     </ul>
                                     @endif
                                     @endif
+                                </td>
+                                <td>
+                                    <input type="text"
+                                        list="grn-site-list"
+                                        class="form-control form-control-sm text-center"
+                                        wire:model.live="grnItems.{{ $index }}.site"
+                                        placeholder="Site">
                                 </td>
                                 <td class="text-center">{{ $item['ordered_qty'] ?? 0 }}</td>
                                 <td>
@@ -668,7 +676,11 @@
                             </div>
                         </div>
                     </div>
-                </div>
+                <datalist id="grn-site-list">
+                    @foreach($sites as $siteOption)
+                        <option value="{{ $siteOption }}">{{ $siteOption }}</option>
+                    @endforeach
+                </datalist>
 
                 <div class="modal-footer">
                     <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>

@@ -15,7 +15,7 @@ class FIFOStockService
      * Deduct stock from batches using FIFO method
      * Returns array with deduction details
      */
-    public static function deductStock($productId, $quantity)
+    public static function deductStock($productId, $quantity, $site = null)
     {
         $remainingQty = $quantity;
         $deductions = [];
@@ -67,8 +67,12 @@ class FIFOStockService
                 $remainingQty -= $deductQty;
             }
 
-            // Update product stock totals
-            $stock = ProductStock::where('product_id', $productId)->first();
+            // Update product stock totals (for the specific site if specified)
+            $stockQuery = ProductStock::where('product_id', $productId);
+            if ($site) {
+                $stockQuery->where('site', $site);
+            }
+            $stock = $stockQuery->first() ?? ProductStock::where('product_id', $productId)->first();
             if ($stock) {
                 $stock->available_stock -= $quantity;
                 $stock->sold_count += $quantity;

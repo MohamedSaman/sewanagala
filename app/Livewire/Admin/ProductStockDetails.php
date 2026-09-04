@@ -17,15 +17,22 @@ class ProductStockDetails extends Component
 {
     use WithDynamicLayout, WithPagination;
     public $search;
+    public $siteFilter = '';
     public $perPage = 30;
 
     public function render()
     {
+        $sites = ProductStock::whereNotNull('site')
+            ->where('site', '!=', '')
+            ->distinct()
+            ->orderBy('site')
+            ->pluck('site');
+
         $salesSummary = DB::table('sale_items')
             ->select('product_id', DB::raw('SUM(quantity) as sold_qty'))
             ->groupBy('product_id');
 
-        $ProductStocks = ProductDetail::join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
+        $query = ProductDetail::join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
             ->leftJoinSub($salesSummary, 'sales_summary', function ($join) {
                 $join->on('product_details.id', '=', 'sales_summary.product_id');
             })
@@ -43,11 +50,18 @@ class ProductStockDetails extends Component
             ->where(function ($query) {
                 $query->where('product_details.name', 'like', '%' . $this->search . '%')
                     ->orWhere('product_details.code', 'like', '%' . $this->search . '%');
-            })
-            ->orderby('product_stocks.available_stock', 'desc')
+            });
+
+        if ($this->siteFilter !== '') {
+            $query->where('product_stocks.site', $this->siteFilter);
+        }
+
+        $ProductStocks = $query->orderby('product_stocks.available_stock', 'desc')
             ->paginate($this->perPage);
+
         return view('livewire.admin.Product-stock-details', [
-            'ProductStocks' => $ProductStocks
+            'ProductStocks' => $ProductStocks,
+            'sites' => $sites,
         ])->layout($this->layout);
     }
 
@@ -55,6 +69,12 @@ class ProductStockDetails extends Component
     {
         $this->resetPage();
     }
+
+    public function updatingSiteFilter()
+    {
+        $this->resetPage();
+    }
+
     public function exportToCSV()
     {
         $salesSummary = DB::table('sale_items')
@@ -62,7 +82,7 @@ class ProductStockDetails extends Component
             ->groupBy('product_id');
 
         // Get data
-        $ProductStocks = ProductDetail::join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
+        $query = ProductDetail::join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
             ->leftJoinSub($salesSummary, 'sales_summary', function ($join) {
                 $join->on('product_details.id', '=', 'sales_summary.product_id');
             })
@@ -72,12 +92,18 @@ class ProductStockDetails extends Component
                 'product_details.code',
                 'brand_lists.brand_name as brand',
                 'product_details.model',
+                'product_stocks.site',
                 DB::raw('(COALESCE(sales_summary.sold_qty, 0) + COALESCE(product_stocks.available_stock, 0) + COALESCE(product_stocks.damage_stock, 0)) as total_stock'),
                 'product_stocks.available_stock',
                 DB::raw('COALESCE(sales_summary.sold_qty, 0) as sold_qty'),
                 'product_stocks.damage_stock'
-            )
-            ->get();
+            );
+
+        if ($this->siteFilter !== '') {
+            $query->where('product_stocks.site', $this->siteFilter);
+        }
+
+        $ProductStocks = $query->get();
 
         if ($ProductStocks->isEmpty()) {
             $this->dispatch('banner-message', [
@@ -86,7 +112,6 @@ class ProductStockDetails extends Component
             ]);
             return;
         }
-
 
         // Generate filename with date
         $fileName = 'Product_stock_' . date('Y-m-d_His') . '.csv';
@@ -97,6 +122,7 @@ class ProductStockDetails extends Component
             'Code',
             'Brand',
             'Model',
+            'Site',
             'Total Stock',
             'Available Stock',
             'Sold Count',
@@ -113,6 +139,7 @@ class ProductStockDetails extends Component
                     $stock->code ?? '-',
                     $stock->brand ?? '-',
                     $stock->model ?? '-',
+                    $stock->site ?? 'Store',
                     $stock->total_stock ?? '0',
                     $stock->available_stock ?? '0',
                     $stock->sold_qty ?? '0',

@@ -544,12 +544,19 @@
                     <div class="pos-search-result"
                         wire:click="addToCart({{ json_encode($product) }})">
                         <div>
-                            <div class="fw-semibold">{{ $product['name'] }}</div>
+                            <div class="fw-semibold d-flex align-items-center gap-1">
+                                <span>{{ $product['name'] }}</span>
+                                <span class="badge bg-primary text-white border ms-1" style="font-size: 0.72rem; padding: 2px 6px;">
+                                    <i class="bi bi-geo-alt me-1"></i>{{ $product['site'] ?? 'Store' }}
+                                </span>
+                            </div>
                             <small class="pos-muted">{{ $product['code'] }} · {{ $product['model'] }}</small>
                         </div>
                         <div class="text-end flex-shrink-0">
                             <div class="pos-search-price">Rs.{{ number_format($product['price'], 2) }}</div>
-                            <small class="pos-muted">Stock: {{ $product['stock'] }}</small>
+                            <span class="badge {{ $product['stock'] > 0 ? 'bg-success-subtle text-success border border-success-subtle' : 'bg-danger-subtle text-danger border border-danger-subtle' }}" style="font-size: 0.75rem;">
+                                Stock: {{ $product['stock'] }}
+                            </span>
                         </div>
                     </div>
                     @endforeach
@@ -608,7 +615,12 @@
                         </div>
                         <div class="pos-product-info">
                             <div class="pos-product-name">{{ Str::limit($product['name'], 32) }}</div>
-                            <div class="pos-product-code">{{ $product['code'] }}</div>
+                            <div class="d-flex justify-content-between align-items-center mt-1">
+                                <span class="pos-product-code">{{ $product['code'] }}</span>
+                                <span class="badge bg-light text-dark border" style="font-size: 0.68rem; font-weight: 600;">
+                                    {{ $product['site'] ?? 'Store' }}
+                                </span>
+                            </div>
                             <div class="pos-product-price">Rs.{{ number_format($product['price'], 2) }}</div>
                         </div>
                     </div>

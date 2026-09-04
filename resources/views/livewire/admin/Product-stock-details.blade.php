@@ -111,6 +111,12 @@
                 </div>
             </div>
             <div class="d-flex align-items-center gap-2">
+                <select wire:model.live="siteFilter" class="form-select form-select-sm" style="min-width: 140px;">
+                    <option value="">All Sites</option>
+                    @foreach($sites as $siteOption)
+                    <option value="{{ $siteOption }}">{{ $siteOption }}</option>
+                    @endforeach
+                </select>
                 <label class="text-sm text-muted fw-medium">Show</label>
                 <select wire:model.live="perPage" class="form-select form-select-sm" style="width: 80px;">
                     <option value="30">30</option>
@@ -133,6 +139,7 @@
                             <th class="ps-4">#</th>
                             <th class="text-center">Image</th>
                             <th>Product Details</th>
+                            <th class="text-center">Site</th>
                             <th class="text-center">Sold</th>
                             <th class="text-center">Available</th>
                             <th class="text-center">Damage</th>
@@ -166,6 +173,9 @@
                                 </div>
                             </td>
                             <td class="text-center">
+                                <span class="badge bg-light text-dark border">{{ $ProductStock->site ?? 'Store' }}</span>
+                            </td>
+                            <td class="text-center">
                                 <span class="fw-bold text-dark">{{ $ProductStock->sold_qty ?? '0' }}</span>
                             </td>
                             <td class="text-center">
@@ -192,7 +202,7 @@
                         @endforeach
                         @else
                         <tr>
-                            <td colspan="8" class="text-center text-muted py-4">
+                            <td colspan="10" class="text-center text-muted py-4">
                                 <i class="bi bi-inbox display-4 d-block mb-2"></i>
                                 No product stock data found
                             </td>

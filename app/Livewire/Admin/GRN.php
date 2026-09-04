@@ -386,7 +386,8 @@ class GRN extends Component
                     if (strtolower($item['status'] ?? '') === 'received' && $receivedQty > 0) {
                         $delta = $receivedQty - $previousQty;
                         if ($delta > 0) {
-                            $this->updateProductStock($productId, $delta, $supplierPrice, $sellingPrice, $this->selectedPO->id);
+                            $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                            $this->updateProductStock($productId, $delta, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                         }
                         $receivedItemsCount++;
                     }
@@ -405,7 +406,8 @@ class GRN extends Component
 
                 // Update stock for new received item
                 if ($receivedQty > 0) {
-                    $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id);
+                    $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                    $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                     $receivedItemsCount++;
                 }
             }
@@ -433,9 +435,19 @@ class GRN extends Component
         $this->loadPurchaseOrders();
     }
 
-    private function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null)
+    private function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null, $site = 'Store')
     {
-        $stock = ProductStock::where('product_id', $productId)->first();
+        $site = !empty($site) ? trim($site) : 'Store';
+        $stock = ProductStock::where('product_id', $productId)->where('site', $site)->first();
+        if (!$stock) {
+            $stock = ProductStock::where('product_id', $productId)
+                ->where(function($q) {
+                    $q->whereNull('site')->orWhere('site', '');
+                })->first();
+            if ($stock) {
+                $stock->site = $site;
+            }
+        }
 
         // Get product details to check prices
         $product = ProductDetail::with('price')->find($productId);
@@ -494,11 +506,13 @@ class GRN extends Component
             $stock->available_stock += $quantity;
             $stock->total_stock += $quantity;
             $stock->restocked_quantity += $quantity;
+            $stock->site = $site;
             $stock->save();
         } else {
             // Create new stock record
             $stock = ProductStock::create([
                 'product_id' => $productId,
+                'site' => $site,
                 'available_stock' => $quantity,
                 'damage_stock' => 0,
                 'total_stock' => $quantity,

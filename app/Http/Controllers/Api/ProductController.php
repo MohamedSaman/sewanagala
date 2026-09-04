@@ -130,6 +130,7 @@ class ProductController extends ApiController
             // Create stock
             ProductStock::create([
                 'product_id' => $product->id,
+                'site' => $request->site ?: 'Store',
                 'available_stock' => $availableStock,
                 'damage_stock' => $damageStock,
                 'total_stock' => $availableStock,

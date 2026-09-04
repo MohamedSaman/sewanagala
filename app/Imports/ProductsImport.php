@@ -68,10 +68,17 @@ class ProductsImport implements ToModel, WithHeadingRow, WithValidation, SkipsEm
             $product = ProductDetail::create([
                 'code' => $code, 'name' => $name, 'status' => 'active',
                 'brand_id' => $this->defaultBrandId, 'category_id' => $category->id,
-                'supplier_id' => $supplier->id, 'site' => $site,
+                'supplier_id' => $supplier->id,
             ]);
             ProductPrice::create(['product_id' => $product->id, 'supplier_price' => $cost, 'selling_price' => $sellingPrice, 'discount_price' => 0]);
-            ProductStock::create(['product_id' => $product->id, 'available_stock' => $stock, 'damage_stock' => 0, 'total_stock' => $stock, 'restocked_quantity' => $stock]);
+            ProductStock::create([
+                'product_id' => $product->id,
+                'site' => $site,
+                'available_stock' => $stock,
+                'damage_stock' => 0,
+                'total_stock' => $stock,
+                'restocked_quantity' => $stock,
+            ]);
             if ($stock > 0) {
                 ProductBatch::create([
                     'product_id' => $product->id, 'batch_number' => ProductBatch::generateBatchNumber($product->id),

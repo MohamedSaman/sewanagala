@@ -667,18 +667,18 @@
                                                         @if(auth()->user()->hasPermission('menu_products_edit'))
                                                         <li>
                                                             <button class="dropdown-item"
-                                                                wire:click="editProduct({{ $product->id }})"
+                                                                wire:click="editProduct({{ $product->id }}, {{ $product->stock_id }})"
                                                                 wire:loading.attr="disabled"
-                                                                wire:target="editProduct({{ $product->id }})">
+                                                                wire:target="editProduct({{ $product->id }}, {{ $product->stock_id }})">
 
                                                                 <span wire:loading
-                                                                    wire:target="editProduct({{ $product->id }})">
+                                                                    wire:target="editProduct({{ $product->id }}, {{ $product->stock_id }})">
                                                                     <i
                                                                         class="spinner-border spinner-border-sm me-2"></i>
                                                                     Loading...
                                                                 </span>
                                                                 <span wire:loading.remove
-                                                                    wire:target="editProduct({{ $product->id }})">
+                                                                    wire:target="editProduct({{ $product->id }}, {{ $product->stock_id }})">
                                                                     <i
                                                                         class="bi bi-pencil-square text-warning me-2"></i>
                                                                     Edit
@@ -691,24 +691,33 @@
                                                         <!-- Stock Adjustment Button -->
                                                         <li>
                                                             <button class="dropdown-item"
-                                                                wire:click="openStockAdjustment({{ $product->id }})"
+                                                                wire:click="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})"
                                                                 wire:loading.attr="disabled"
-                                                                wire:target="openStockAdjustment({{ $product->id }})">
+                                                                wire:target="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})">
 
                                                                 <span wire:loading
-                                                                    wire:target="openStockAdjustment({{ $product->id }})">
+                                                                    wire:target="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})">
                                                                     <i
                                                                         class="spinner-border spinner-border-sm me-2"></i>
                                                                     Loading...
                                                                 </span>
                                                                 <span wire:loading.remove
-                                                                    wire:target="openStockAdjustment({{ $product->id }})">
+                                                                    wire:target="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})">
                                                                     <i class="bi bi-clipboard-plus text-info me-2"></i>
                                                                     Stock Adjustment
                                                                 </span>
                                                             </button>
                                                         </li>
                                                         @endif
+
+                                                        <li>
+                                                            <button class="dropdown-item"
+                                                                wire:click="openAddSiteStock({{ $product->id }})"
+                                                                wire:loading.attr="disabled">
+                                                                <i class="bi bi-geo-alt-fill text-primary me-2"></i>
+                                                                Add to Another Site
+                                                            </button>
+                                                        </li>
 
                                                         @if(auth()->user()->hasPermission('menu_products_history'))
                                                         <!-- History Button -->
@@ -1112,6 +1121,51 @@
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body p-4">
+                        <!-- Mode Selector: New Product vs Existing Product Different Site -->
+                        <div class="card mb-4 border-primary">
+                            <div class="card-body p-3 bg-light rounded">
+                                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                                    <div>
+                                        <label class="fw-bold text-dark mb-0 d-block">
+                                            <i class="bi bi-box-seam text-primary me-1"></i> Mode:
+                                        </label>
+                                        <small class="text-muted">Create brand new product or add stock for a different site to an existing product</small>
+                                    </div>
+                                    <div class="btn-group" role="group">
+                                        <button type="button" 
+                                            class="btn btn-sm {{ !$isExistingProductMode ? 'btn-primary' : 'btn-outline-primary' }}"
+                                            wire:click="$set('isExistingProductMode', false)">
+                                            <i class="bi bi-plus-lg me-1"></i> New Product
+                                        </button>
+                                        <button type="button" 
+                                            class="btn btn-sm {{ $isExistingProductMode ? 'btn-primary' : 'btn-outline-primary' }}"
+                                            wire:click="$set('isExistingProductMode', true)">
+                                            <i class="bi bi-building-add me-1"></i> Add Stock to Existing Product (Different Site)
+                                        </button>
+                                    </div>
+                                </div>
+
+                                @if($isExistingProductMode)
+                                <div class="mt-3 pt-3 border-top">
+                                    <label class="form-label fw-semibold text-primary">Choose Existing Product:</label>
+                                    <select class="form-select" wire:model.live="selectedExistingProductId">
+                                        <option value="">-- Select Existing Product --</option>
+                                        @foreach($existingProducts as $ep)
+                                            <option value="{{ $ep->id }}">{{ $ep->code }} - {{ $ep->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if($existingProductInfo)
+                                    <div class="alert alert-info py-2 px-3 mt-2 mb-0 small">
+                                        <i class="bi bi-info-circle-fill me-1"></i>
+                                        <strong>{{ $existingProductInfo['name'] }}</strong> (Code: <code>{{ $existingProductInfo['code'] }}</code>)<br>
+                                        <span class="text-muted">Current Sites Stock:</span> <strong>{{ $existingProductInfo['existing_sites'] ?: 'None' }}</strong>
+                                    </div>
+                                    @endif
+                                </div>
+                                @endif
+                            </div>
+                        </div>
+
                         <div class="card mb-4">
                             <div class="card-header">
                                 <h5 class="card-title mb-0">
@@ -1124,7 +1178,7 @@
                                         <div class="mb-3">
                                             <label for="code" class="form-label fw-semibold">Code: <small class="text-muted fw-normal">(Auto-generated)</small></label>
                                             <div class="input-group">
-                                                <input type="text" class="form-control" id="code" wire:model="code" placeholder="e.g. SE2633">
+                                                <input type="text" class="form-control" id="code" wire:model.live.debounce.400ms="code" placeholder="e.g. SE2633">
                                                 <button class="btn btn-outline-secondary" type="button" wire:click="$set('code', '{{ $this->generateNextProductCode() }}')" title="Regenerate Next Code">
                                                     <i class="bi bi-arrow-clockwise"></i>
                                                 </button>
@@ -1364,7 +1418,11 @@
                                 <i class="spinner-border spinner-border-sm"></i> Creating...
                             </span>
                             <span wire:loading.remove wire:target="createProduct">
-                                Save Product
+                                @if($isExistingProductMode || $existingProductInfo)
+                                    <i class="bi bi-building-add me-1"></i> Save Site Stock
+                                @else
+                                    Save Product
+                                @endif
                             </span>
                         </button>
                     </div>
@@ -1868,6 +1926,60 @@
                     </div>
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Site Stock Modal -->
+        <div wire:ignore.self class="modal fade" id="addSiteStockModal" tabindex="-1"
+            aria-labelledby="addSiteStockModalLabel" aria-hidden="true">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header bg-primary text-white">
+                        <h5 class="modal-title fw-bold" id="addSiteStockModalLabel">
+                            <i class="bi bi-geo-alt-fill me-2"></i> Add Stock to Another Site
+                        </h5>
+                        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body p-4">
+                        <div class="alert alert-info border-0 mb-3 py-2">
+                            <div class="fw-semibold text-dark">{{ $addSiteProductName }}</div>
+                            <small class="text-muted">Product Code: {{ $addSiteProductCode }}</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="newSiteName" class="form-label fw-semibold">Target Site Name: <span class="text-danger">*</span></label>
+                            <input type="text" list="newSiteNameList" class="form-control" id="newSiteName" wire:model="newSiteName" placeholder="e.g. SC WAREHOUSE, Pannala, Store">
+                            <datalist id="newSiteNameList">
+                                @foreach($sites as $siteOption)
+                                <option value="{{ $siteOption }}">{{ $siteOption }}</option>
+                                @endforeach
+                            </datalist>
+                            @error('newSiteName')
+                            <span class="text-danger small d-block mt-1">* {{ $message }}</span>
+                            @enderror
+                            <div class="form-text">Choose an existing site or type a new one. A product can only have one stock entry per site.</div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="newSiteStock" class="form-label fw-semibold">Initial Available Stock: <span class="text-danger">*</span></label>
+                            <input type="number" min="0" class="form-control" id="newSiteStock" wire:model="newSiteStock" placeholder="0">
+                            @error('newSiteStock')
+                            <span class="text-danger small d-block mt-1">* {{ $message }}</span>
+                            @enderror
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn btn-primary" wire:click="saveSiteStock" wire:loading.attr="disabled">
+                            <span wire:loading wire:target="saveSiteStock">
+                                <i class="spinner-border spinner-border-sm me-1"></i> Saving...
+                            </span>
+                            <span wire:loading.remove wire:target="saveSiteStock">
+                                <i class="bi bi-check-circle me-1"></i> Add Site Stock
+                            </span>
+                        </button>
                     </div>
                 </div>
             </div>

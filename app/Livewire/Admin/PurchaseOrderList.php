@@ -60,6 +60,7 @@ class PurchaseOrderList extends Component
 
     // Add this property to track new products
     public $newProducts = [];
+    public $sites = [];
     public $perPage = 30;
     public $fromDateFilter = '';
     public $toDateFilter = '';
@@ -69,6 +70,10 @@ class PurchaseOrderList extends Component
         $this->suppliers = ProductSupplier::all();
         $this->searchResults = []; // Initialize searchResults array
         $this->orderDate = now()->format('Y-m-d'); // Initialize with current date
+        $this->sites = ProductStock::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site')->toArray();
+        if (empty($this->sites)) {
+            $this->sites = ['Store'];
+        }
     }
 
     // Reset pagination when search changes
@@ -745,7 +750,7 @@ class PurchaseOrderList extends Component
         }
     }
 
-    protected function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null)
+    protected function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null, $site = 'Store')
     {
         $product = ProductDetail::with('price')->find($productId);
         if (!$product) return;
@@ -760,8 +765,17 @@ class PurchaseOrderList extends Component
             $sellingPrice = $productPrice->selling_price;
         }
 
-        // Check if product already has stock
-        $stock = $product->stock;
+        $site = !empty($site) ? trim($site) : 'Store';
+        $stock = ProductStock::where('product_id', $productId)->where('site', $site)->first();
+        if (!$stock) {
+            $stock = ProductStock::where('product_id', $productId)
+                ->where(function($q) {
+                    $q->whereNull('site')->orWhere('site', '');
+                })->first();
+            if ($stock) {
+                $stock->site = $site;
+            }
+        }
         $hasExistingStock = $stock && $stock->available_stock > 0;
 
         // Create a new batch for this purchase
@@ -778,15 +792,17 @@ class PurchaseOrderList extends Component
             'status' => 'active',
         ]);
 
-        // Update product stock totals
+        // Update product stock totals for this site
         if ($stock) {
             $stock->available_stock += $quantity;
             $stock->total_stock += $quantity;
+            $stock->site = $site;
             $stock->save();
         } else {
             // Create new stock record
             ProductStock::create([
                 'product_id' => $productId,
+                'site' => $site,
                 'available_stock' => $quantity,
                 'damage_stock' => 0,
                 'total_stock' => $quantity,
@@ -976,7 +992,8 @@ class PurchaseOrderList extends Component
                         $orderItem->save();
 
                         if ($status === 'received' && $receivedQty > 0) {
-                            $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id);
+                            $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                            $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                         }
                     }
                 } else {
@@ -997,7 +1014,8 @@ class PurchaseOrderList extends Component
                     ]);
 
                     if ($receivedQty > 0) {
-                        $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id);
+                        $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                        $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                     }
                 }
             }
@@ -1076,13 +1094,14 @@ class PurchaseOrderList extends Component
         $item = $this->grnItems[$index];
         $productId = $item['product_id'];
         $receivedQty = (int) ($item['received_quantity'] ?? 0);
+        $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
 
         // Mark the item as received in the UI
         $this->grnItems[$index]['status'] = 'received';
 
         // Update stock immediately if we have a valid product and quantity
         if ($productId && $receivedQty > 0) {
-            $this->updateProductStock($productId, $receivedQty);
+            $this->updateProductStock($productId, $receivedQty, 0, 0, null, $itemSite);
         }
         if (isset($this->grnItems[$index])) {
             $this->grnItems[$index]['status'] = 'received';
@@ -1163,6 +1182,10 @@ class PurchaseOrderList extends Component
             $this->grnItems[$index]['product_id'] = $product->id;
             $this->grnItems[$index]['code'] = $product->code;
             $this->grnItems[$index]['name'] = $product->name;
+            if (empty($this->grnItems[$index]['site'])) {
+                $stock = ProductStock::where('product_id', $productId)->first();
+                $this->grnItems[$index]['site'] = $stock->site ?? 'Store';
+            }
 
             // Get product price
             $price = \App\Models\ProductPrice::where('product_id', $productId)->value('supplier_price');
@@ -1189,6 +1212,7 @@ class PurchaseOrderList extends Component
             'product_id' => null,
             'code' => '',
             'name' => '',
+            'site' => 'Store',
             'ordered_qty' => 0,
             'received_quantity' => 0,
             'unit_price' => 0,
@@ -1219,11 +1243,18 @@ class PurchaseOrderList extends Component
             // Set default discount_type to 'percent'
             $discountType = $item->discount_type ?? 'percent';
 
+            $defaultSite = 'Store';
+            $stock = ProductStock::where('product_id', $item->product_id)->first();
+            if ($stock && !empty($stock->site)) {
+                $defaultSite = $stock->site;
+            }
+
             $this->grnItems[] = [
                 'id' => $item->id,
                 'product_id' => $item->product_id,
                 'code' => $item->product->code ?? 'N/A',
                 'name' => $item->product->name ?? 'N/A',
+                'site' => $defaultSite,
                 'ordered_qty' => $item->quantity,
                 'received_quantity' => $item->quantity,
                 'unit_price' => $item->unit_price,
@@ -1259,11 +1290,18 @@ class PurchaseOrderList extends Component
                 // Set default discount_type to 'percent'
                 $discountType = $item->discount_type ?? 'percent';
 
+                $defaultSite = 'Store';
+                $stock = ProductStock::where('product_id', $item->product_id)->first();
+                if ($stock && !empty($stock->site)) {
+                    $defaultSite = $stock->site;
+                }
+
                 $this->grnItems[] = [
                     'id' => $item->id,
                     'product_id' => $item->product_id,
                     'code' => $item->product->code ?? 'N/A',
                     'name' => $item->product->name ?? 'N/A',
+                    'site' => $defaultSite,
                     'ordered_qty' => $item->quantity,
                     'received_quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
