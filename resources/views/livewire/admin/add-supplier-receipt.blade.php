@@ -107,7 +107,7 @@
                         <div class="col-12">
                             <div class="border rounded p-3 bg-light">
                                 <h6 class="fw-semibold mb-3 text-success">
-                                    <i class="bi bi-receipt me-2"></i>Cheque Details
+                                    <i class="bi bi-receipt me-2"></i>Cheque Details (Given to Supplier)
                                 </h6>
                                 <div class="row g-3">
                                     <div class="col-md-4">
@@ -119,16 +119,36 @@
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label fw-semibold">Bank Name <span class="text-danger">*</span></label>
-                                        <input type="text" class="form-control @error('cheque.bank_name') is-invalid @enderror"
+                                        <input type="text" list="sl_banks_list" class="form-control @error('cheque.bank_name') is-invalid @enderror"
                                             wire:model="cheque.bank_name"
-                                            placeholder="Enter bank name">
+                                            placeholder="Select or enter bank name">
+                                        <datalist id="sl_banks_list">
+                                            <option value="BOC">Bank of Ceylon (BOC)</option>
+                                            <option value="People's Bank">People's Bank</option>
+                                            <option value="COM">Commercial Bank (COM)</option>
+                                            <option value="HNB">Hatton National Bank (HNB)</option>
+                                            <option value="Sampath Bank">Sampath Bank</option>
+                                            <option value="Seylan Bank">Seylan Bank</option>
+                                            <option value="DFCC Bank">DFCC Bank</option>
+                                            <option value="NTB">Nations Trust Bank (NTB)</option>
+                                            <option value="NDB">National Development Bank (NDB)</option>
+                                            <option value="Pan Asia Bank">Pan Asia Bank</option>
+                                            <option value="Union Bank">Union Bank</option>
+                                            <option value="Cargills Bank">Cargills Bank</option>
+                                            <option value="Amana Bank">Amana Bank</option>
+                                        </datalist>
                                         @error('cheque.bank_name') <span class="text-danger small">{{ $message }}</span> @enderror
                                     </div>
                                     <div class="col-md-4">
                                         <label class="form-label fw-semibold">Cheque Date <span class="text-danger">*</span></label>
                                         <input type="date" class="form-control @error('cheque.cheque_date') is-invalid @enderror"
-                                            wire:model="cheque.cheque_date">
+                                            wire:model.live="cheque.cheque_date">
                                         @error('cheque.cheque_date') <span class="text-danger small">{{ $message }}</span> @enderror
+                                        @if(!empty($cheque['cheque_date']) && \App\Models\Holiday::isHoliday($cheque['cheque_date']))
+                                            <div class="text-danger small mt-1 fw-bold">
+                                                <i class="bi bi-exclamation-triangle"></i> Holiday: {{ \App\Models\Holiday::getHolidayReason($cheque['cheque_date']) }}
+                                            </div>
+                                        @endif
                                     </div>
                                 </div>
                             </div>
@@ -822,6 +842,70 @@
                     </div>
                 </div>
                 @endif
+
+                {{-- Cheques Given to Selected Supplier --}}
+                <div class="card mb-4 border-0 shadow-sm">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center py-2">
+                        <h6 class="fw-bold mb-0">
+                            <i class="bi bi-card-checklist text-warning me-2"></i> Cheques Given to {{ $selectedSupplier->name }}
+                        </h6>
+                        <div>
+                            <span class="badge bg-warning text-dark me-2">{{ count($supplierGivenCheques) }} Cheque(s)</span>
+                            <a href="{{ route('admin.supplier-cheque-list') }}" class="btn btn-sm btn-outline-light py-0 px-2" target="_blank">
+                                <i class="bi bi-box-arrow-up-right me-1"></i> Supplier Cheques Page
+                            </a>
+                        </div>
+                    </div>
+                    <div class="card-body p-0 overflow-auto">
+                        <div class="table-responsive" style="min-height: auto; max-height: 350px;">
+                            <table class="table table-hover mb-0 align-middle">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th class="ps-3">Cheque No</th>
+                                        <th>Bank</th>
+                                        <th class="text-center">Date</th>
+                                        <th class="text-center">Day</th>
+                                        <th class="text-end">Amount</th>
+                                        <th class="text-center pe-3">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @forelse($supplierGivenCheques as $cheq)
+                                    <tr>
+                                        <td class="ps-3 fw-bold text-primary">{{ $cheq->cheque_number }}</td>
+                                        <td>{{ $cheq->bank_name }}</td>
+                                        <td class="text-center">
+                                            {{ $cheq->cheque_date ? date('d/m/Y', strtotime($cheq->cheque_date)) : '-' }}
+                                            @if($cheq->is_holiday)
+                                                <br><span class="badge bg-danger py-0 px-1" style="font-size: 0.65rem;" title="{{ $cheq->holiday_reason }}">Holiday</span>
+                                            @endif
+                                        </td>
+                                        <td class="text-center text-muted small">{{ $cheq->day_name }}</td>
+                                        <td class="text-end fw-bold text-dark">Rs. {{ number_format($cheq->amount, 2) }}</td>
+                                        <td class="text-center pe-3">
+                                            @if($cheq->status === 'complete')
+                                                <span class="badge bg-success">Complete</span>
+                                            @elseif($cheq->status === 'return')
+                                                <span class="badge bg-danger">Returned</span>
+                                            @elseif($cheq->status === 'cancelled')
+                                                <span class="badge bg-secondary">Cancelled</span>
+                                            @else
+                                                <span class="badge bg-warning text-dark">Pending</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @empty
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">
+                                            <i class="bi bi-inbox me-1"></i> No cheques recorded yet for this supplier.
+                                        </td>
+                                    </tr>
+                                    @endforelse
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             {{-- Payment Allocation --}}

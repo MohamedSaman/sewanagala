@@ -48,6 +48,11 @@ class PurchasePayment extends Model
         return $this->hasMany(PurchasePaymentAllocation::class, 'purchase_payment_id');
     }
 
+    public function supplierCheque()
+    {
+        return $this->hasOne(SupplierCheque::class, 'purchase_payment_id');
+    }
+
     /**
      * Get total payment including overpayment credit used
      */

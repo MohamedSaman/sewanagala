@@ -1142,7 +1142,12 @@
                 </li>
                 <li class="nav-item">
                     <a class="nav-link py-2" href="{{ route('admin.cheque-list') }}">
-                        <i class="bi bi-card-text"></i> <span>Cheque List</span>
+                        <i class="bi bi-card-text"></i> <span>Customer Cheque List</span>
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2" href="{{ route('admin.supplier-cheque-list') }}">
+                        <i class="bi bi-file-earmark-check"></i> <span>Supplier Cheque List</span>
                     </a>
                 </li>
                 <li class="nav-item">

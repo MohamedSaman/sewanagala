@@ -95,7 +95,8 @@ class StaffPermission extends Model
             // Cheque/Banks
             'menu_banks' => 'Cheque/Banks Menu',
             'menu_banks_deposit' => 'Deposit By Cash',
-            'menu_banks_cheque_list' => 'Cheque List',
+            'menu_banks_cheque_list' => 'Customer Cheque List',
+            'menu_banks_supplier_cheque_list' => 'Supplier Cheque List',
             'menu_banks_cheque_edit' => 'Edit Cheque',
             'menu_banks_cheque_complete' => 'Mark Cheque Complete',
             'menu_banks_cheque_return' => 'Return Cheque Action',

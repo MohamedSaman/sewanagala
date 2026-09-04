@@ -1218,7 +1218,14 @@
                             @if(auth()->user()->hasPermission('menu_banks_cheque_list'))
                             <li class="nav-item">
                                 <a class="nav-link py-2" href="{{ route('staff.cheque-list') }}">
-                                    <i class="bi bi-card-text"></i> <span>Cheque List</span>
+                                    <i class="bi bi-card-text"></i> <span>Customer Cheque List</span>
+                                </a>
+                            </li>
+                            @endif
+                            @if(auth()->user()->hasPermission('menu_banks_supplier_cheque_list') || auth()->user()->hasPermission('menu_banks_cheque_list'))
+                            <li class="nav-item">
+                                <a class="nav-link py-2" href="{{ route('staff.supplier-cheque-list') }}">
+                                    <i class="bi bi-file-earmark-check"></i> <span>Supplier Cheque List</span>
                                 </a>
                             </li>
                             @endif

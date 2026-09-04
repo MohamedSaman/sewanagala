@@ -30,6 +30,11 @@ class ProductSupplier extends Model
         return $this->hasMany(\App\Models\PurchaseOrder::class, 'supplier_id');
     }
 
+    public function cheques(): HasMany
+    {
+        return $this->hasMany(\App\Models\SupplierCheque::class, 'supplier_id');
+    }
+
     /**
      * Add overpayment credit to supplier
      */

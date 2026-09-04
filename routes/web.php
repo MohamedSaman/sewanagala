@@ -66,6 +66,7 @@ use App\Livewire\Admin\ReturnProduct;
 use App\Livewire\Admin\AddCustomerReceipt;
 use App\Livewire\Admin\AddSupplierReceipt;
 use App\Livewire\Admin\ChequeList;
+use App\Livewire\Admin\SupplierChequeList;
 use App\Livewire\Admin\DaySummary;
 use App\Livewire\Admin\DaySummaryDetails;
 use App\Livewire\Admin\Deposits;
@@ -213,6 +214,7 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
         Route::get('/return-list', ReturnList::class)->name('return-list');
         Route::get('/add-customer-receipt', AddCustomerReceipt::class)->name('add-customer-receipt');
         Route::get('/cheque-list', ChequeList::class)->name('cheque-list');
+        Route::get('/supplier-cheque-list', SupplierChequeList::class)->name('supplier-cheque-list');
        
         Route::get('/return-cheque', ReturnCheque::class)->name('return-cheque');
         Route::get('/list-customer-receipt', ListCustomerReceipt::class)->name('list-customer-receipt');
@@ -289,6 +291,7 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
 
         // Cheques/Banks
         Route::get('/cheque-list', ChequeList::class)->name('cheque-list');
+        Route::get('/supplier-cheque-list', SupplierChequeList::class)->name('supplier-cheque-list');
         Route::get('/return-cheque', ReturnCheque::class)->name('return-cheque');
 
         // Finance

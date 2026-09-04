@@ -9,6 +9,8 @@ use App\Models\PurchaseOrder;
 use App\Models\PurchasePayment;
 use App\Models\PurchasePaymentAllocation;
 use App\Models\POSSession;
+use App\Models\SupplierCheque;
+use App\Models\Holiday;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Barryvdh\DomPDF\Facade\Pdf;
@@ -27,6 +29,7 @@ class AddSupplierReceipt extends Component
     public $selectedSupplier = null;
     public $supplierOrders = [];
     public $selectedOrders = [];
+    public $supplierGivenCheques = [];
     public $totalDueAmount = 0;
     public $totalPaymentAmount = '';
     public $remainingAmount = 0;
@@ -129,6 +132,7 @@ class AddSupplierReceipt extends Component
     {
         $this->selectedSupplier = ProductSupplier::find($supplierId);
         $this->loadSupplierOrders();
+        $this->loadSupplierCheques();
         $this->selectedOrders = collect($this->supplierOrders)->pluck('id')->toArray();
         $this->calculateTotalDue();
         $this->totalPaymentAmount = '';
@@ -145,6 +149,7 @@ class AddSupplierReceipt extends Component
         $this->selectedSupplier = null;
         $this->supplierOrders = [];
         $this->selectedOrders = [];
+        $this->supplierGivenCheques = [];
         $this->allocations = [];
         $this->totalDueAmount = 0;
         $this->totalPaymentAmount = '';
@@ -153,6 +158,18 @@ class AddSupplierReceipt extends Component
         $this->useOverpayment = false;
         $this->overpaymentToApply = '';
         $this->resetPaymentData();
+    }
+
+    public function loadSupplierCheques()
+    {
+        if (!$this->selectedSupplier) {
+            $this->supplierGivenCheques = [];
+            return;
+        }
+
+        $this->supplierGivenCheques = SupplierCheque::where('supplier_id', $this->selectedSupplier->id)
+            ->orderBy('cheque_date', 'desc')
+            ->get();
     }
 
     private function loadSupplierOrders()
@@ -420,12 +437,26 @@ class AddSupplierReceipt extends Component
                 'cheque.amount' => 'required|numeric|min:0.01',
             ]);
 
+            if (Holiday::isHoliday($this->cheque['cheque_date'])) {
+                $reason = Holiday::getHolidayReason($this->cheque['cheque_date']);
+                $this->addError('cheque.cheque_date', "The selected date is marked as a Holiday / Poya Day ({$reason}). Cheques cannot be dated on this day.");
+                $this->dispatch('show-toast', [
+                    'type' => 'error',
+                    'message' => "Selected cheque date ({$this->cheque['cheque_date']}) is a Holiday / Poya Day ({$reason})."
+                ]);
+                return;
+            }
+
             // Check for duplicate cheque number
             $exists = PurchasePayment::where('payment_method', 'cheque')
                 ->where('cheque_number', $this->cheque['cheque_number'])
+                ->where('bank_name', $this->cheque['bank_name'])
                 ->exists();
-            if ($exists) {
-                $this->addError('cheque.cheque_number', 'This cheque number has already been used. Please enter a unique cheque number.');
+            $existsInSupplierCheques = SupplierCheque::where('cheque_number', $this->cheque['cheque_number'])
+                ->where('bank_name', $this->cheque['bank_name'])
+                ->exists();
+            if ($exists || $existsInSupplierCheques) {
+                $this->addError('cheque.cheque_number', 'This cheque number for the selected bank has already been used.');
                 return;
             }
 
@@ -479,6 +510,21 @@ class AddSupplierReceipt extends Component
                 }
 
                 $payment = PurchasePayment::create($paymentRecord);
+
+                if ($this->paymentData['payment_method'] === 'cheque') {
+                    SupplierCheque::create([
+                        'cheque_number' => $this->cheque['cheque_number'],
+                        'cheque_date' => $this->cheque['cheque_date'],
+                        'bank_name' => $this->cheque['bank_name'],
+                        'amount' => (float)$this->totalPaymentAmount,
+                        'supplier_id' => $this->selectedSupplier->id,
+                        'payee_name' => $this->selectedSupplier->name,
+                        'purchase_payment_id' => $payment->id,
+                        'status' => 'pending',
+                        'notes' => $this->paymentData['notes'] ?? null,
+                        'created_by' => auth()->id(),
+                    ]);
+                }
             } else {
                 // Create a record for overpayment-only transaction
                 $payment = PurchasePayment::create([
@@ -538,6 +584,8 @@ class AddSupplierReceipt extends Component
             }
 
             DB::commit();
+
+            $this->loadSupplierCheques();
 
             // Store the last payment for receipt
             $this->lastPayment = PurchasePayment::with(['supplier', 'allocations.order'])
