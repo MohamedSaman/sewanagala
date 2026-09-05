@@ -32,14 +32,20 @@ class SupplierManage extends Component
     public $showEditModal = false;
     public $showViewModal = false;
     public $perPage = 30;
+    public $search = '';
+
+    public function updatedSearch()
+    {
+        $this->resetPage();
+    }
 
     protected $rules = [
         'name' => 'required|string|max:255',
         'businessname' => 'nullable|string|max:255',
-        'contact' => 'nullable|string|max:10',
+        'contact' => 'nullable|string|max:20',
         'address' => 'nullable|string|max:255',
         'email' => 'nullable|email|max:255',
-        'phone' => 'nullable|string|max:10',
+        'phone' => 'nullable|string|max:20',
         'status' => 'required|in:active,inactive',
         'notes' => 'nullable|string|max:500',
         'balanceTotal' => 'nullable|numeric|min:0',
@@ -52,13 +58,13 @@ class SupplierManage extends Component
         'businessname.string' => 'The business name must be a valid string.',
         'businessname.max' => 'The business name may not be greater than 255 characters.',
         'contact.string' => 'The contact number must be a valid string.',
-        'contact.max' => 'The contact number may not be greater than 10 characters.',
+        'contact.max' => 'The contact number may not be greater than 20 characters.',
         'address.string' => 'The address must be a valid string.',
         'address.max' => 'The address may not be greater than 255 characters.',
         'email.email' => 'Please enter a valid email address.',
         'email.max' => 'The email may not be greater than 255 characters.',
         'phone.string' => 'The phone number must be a valid string.',
-        'phone.max' => 'The phone number may not be greater than 10 characters.',
+        'phone.max' => 'The phone number may not be greater than 20 characters.',
         'status.required' => 'The status field is required.',
         'status.in' => 'The selected status is invalid.',
         'notes.string' => 'The notes must be a valid string.',
@@ -216,7 +222,18 @@ class SupplierManage extends Component
 
     public function render()
     {
-        $query = ProductSupplier::withSum('orders as orders_sum_due_amount', 'due_amount')->latest();
+        $query = ProductSupplier::withSum('orders as orders_sum_due_amount', 'due_amount')
+            ->when($this->search, function ($q) {
+                $term = '%' . trim($this->search) . '%';
+                $q->where(function ($sub) use ($term) {
+                    $sub->where('name', 'like', $term)
+                        ->orWhere('phone', 'like', $term)
+                        ->orWhere('contact', 'like', $term)
+                        ->orWhere('businessname', 'like', $term)
+                        ->orWhere('email', 'like', $term);
+                });
+            })
+            ->latest();
 
         if ($this->perPage === 'all') {
             $totalRows = (clone $query)->count();

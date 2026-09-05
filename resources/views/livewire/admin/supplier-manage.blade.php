@@ -18,24 +18,37 @@
 
     <div class="container-fluid">
         <div class="card">
-            <div class="card-header d-flex justify-content-between align-items-center">
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
                 <div>
                     <h5 class="fw-bold text-dark mb-1">
                         <i class="bi bi-list-ul text-primary me-2"></i> Supplier List
                     </h5>
                     <p class="text-muted small mb-0">View and manage all registered suppliers</p>
                 </div>
-                <div class="d-flex align-items-center gap-2">
-                    <label class="text-sm text-muted fw-medium">Show</label>
-                    <select wire:model.live="perPage" class="form-select form-select-sm" style="width: 80px;">
-                        <option value="30">30</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="200">200</option>
-                        <option value="500">500</option>
-                        <option value="all">All</option>
-                    </select>
-                    <span class="text-sm text-muted">entries</span>
+                <div class="d-flex align-items-center flex-wrap gap-3">
+                    <div class="input-group input-group-sm" style="min-width: 250px; max-width: 320px;">
+                        <span class="input-group-text bg-light border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" class="form-control border-start-0 ps-0" placeholder="Search by name, phone..." wire:model.live.debounce.300ms="search">
+                        @if($search)
+                        <button class="btn btn-outline-secondary border-start-0 bg-light" type="button" wire:click="$set('search', '')" title="Clear search">
+                            <i class="bi bi-x-lg text-muted"></i>
+                        </button>
+                        @endif
+                    </div>
+                    <div class="d-flex align-items-center gap-2">
+                        <label class="text-sm text-muted fw-medium mb-0">Show</label>
+                        <select wire:model.live="perPage" class="form-select form-select-sm" style="width: 80px;">
+                            <option value="30">30</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                            <option value="200">200</option>
+                            <option value="500">500</option>
+                            <option value="all">All</option>
+                        </select>
+                        <span class="text-sm text-muted mb-0">entries</span>
+                    </div>
                 </div>
             </div>
             <div class="card-body p-0 overflow-auto">
@@ -46,7 +59,7 @@
                                 <th class="ps-4">#</th>
                                 <th>Supplier Name</th>
                                 <th>Business Name</th>
-                                <th>Contact</th>
+                                <th>Contact / Phone</th>
                                 <th>Email</th>
                                 <th class="text-end">Balance Total</th>
                                 <th class="text-end pe-4">Actions</th>
@@ -59,9 +72,14 @@
                                 <td>
                                     <span class="fw-medium text-dark">{{ $supplier->name }}</span>
                                 </td>
-                                <td>{{ $supplier->businessname }}</td>
-                                <td>{{ $supplier->contact }}</td>
-                                <td>{{ $supplier->email }}</td>
+                                <td>{{ $supplier->businessname ?: '-' }}</td>
+                                <td>
+                                    <div>{{ $supplier->contact ?: ($supplier->phone ?: '-') }}</div>
+                                    @if($supplier->phone && $supplier->contact && $supplier->phone !== $supplier->contact)
+                                        <small class="text-muted"><i class="bi bi-telephone me-1"></i>{{ $supplier->phone }}</small>
+                                    @endif
+                                </td>
+                                <td>{{ $supplier->email ?: '-' }}</td>
                                 @php
                                 $totalBalance = (float) $supplier->balance_total + (float) ($supplier->orders_sum_due_amount ?? 0);
                                 @endphp

@@ -165,8 +165,8 @@
                     <td>{{ $payment->supplier->name ?? 'N/A' }}</td>
                 </tr>
                 <tr>
-                    <td><strong>Mobile:</strong></td>
-                    <td>{{ $payment->supplier->mobile ?? 'N/A' }}</td>
+                    <td><strong>Phone:</strong></td>
+                    <td>{{ $payment->supplier->phone ?: ($payment->supplier->contact ?: 'N/A') }}</td>
                 </tr>
                 <tr>
                     <td><strong>Email:</strong></td>
@@ -260,6 +260,26 @@
                         <td></td>
                     </tr>
                 </tfoot>
+            </table>
+        </div>
+        @else
+        <div class="section">
+            <div class="section-title">PAYMENT ALLOCATION</div>
+            <table class="table table-bordered">
+                <thead>
+                    <tr>
+                        <th>Description</th>
+                        <th class="text-right">Paid Amount</th>
+                        <th class="text-center">Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Opening Balance / Previous Balance Payment</strong></td>
+                        <td class="text-right"><strong>Rs. {{ number_format($totalAmountPaid, 2) }}</strong></td>
+                        <td class="text-center"><span class="status-paid">PAID</span></td>
+                    </tr>
+                </tbody>
             </table>
         </div>
         @endif
