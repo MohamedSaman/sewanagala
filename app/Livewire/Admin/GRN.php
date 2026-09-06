@@ -136,17 +136,18 @@ class GRN extends Component
             $currentSellingPrice = $product && $product->price ? $product->price->selling_price : 0;
 
             $this->grnItems[] = [
-                'id' => $item->id,
-                'product_id' => $item->product_id,
-                'code' => $item->product->code ?? ($product?->code ?? ''),
-                'name' => $item->product->name ?? ($product?->name ?? ''),
-                'ordered_qty' => $item->quantity,
+                'id'           => $item->id,
+                'product_id'   => $item->product_id,
+                'code'         => $item->product->code ?? ($product?->code ?? ''),
+                'name'         => $item->product->name ?? ($product?->name ?? ''),
+                'ordered_qty'  => $item->quantity,
                 'received_qty' => $item->quantity,
-                'unit_price' => $item->unit_price,
-                'discount' => $item->discount,
-                'discount_type' => $item->discount_type ?? 'percent',
-                'selling_price' => $currentSellingPrice, // Add selling price
-                'status' => $item->status,
+                'unit_price'   => $item->unit_price,
+                'discount'     => $item->discount,
+                'discount_type'=> $item->discount_type ?? 'percent',
+                'selling_price'=> $currentSellingPrice,
+                'status'       => $item->status,
+                'site'         => $item->site ?? 'mainstoreGRN',  // default to mainstoreGRN
             ];
         }
 
@@ -233,14 +234,15 @@ class GRN extends Component
         }
 
         $this->grnItems[] = [
-            'product_id' => $this->newItem['product_id'],
-            'name' => $this->newItem['name'],
-            'ordered_qty' => 0,
+            'product_id'   => $this->newItem['product_id'],
+            'name'         => $this->newItem['name'],
+            'ordered_qty'  => 0,
             'received_qty' => $qty,
-            'unit_price' => $unitPrice,
-            'discount' => $discount,
-            'discount_type' => 'percent',
-            'status' => 'received',
+            'unit_price'   => $unitPrice,
+            'discount'     => $discount,
+            'discount_type'=> 'percent',
+            'status'       => 'received',
+            'site'         => 'mainstoreGRN',
         ];
 
         $this->newItem = ['product_id' => null, 'name' => '', 'qty' => 1, 'unit_price' => 0, 'discount' => 0, 'status' => 'received'];
@@ -251,14 +253,15 @@ class GRN extends Component
     public function addNewRow()
     {
         $this->grnItems[] = [
-            'product_id' => null,
-            'name' => '',
-            'ordered_qty' => 0,
+            'product_id'   => null,
+            'name'         => '',
+            'ordered_qty'  => 0,
             'received_qty' => 1,
-            'unit_price' => 0,
-            'discount' => 0,
-            'discount_type' => 'percent',
-            'status' => 'received',
+            'unit_price'   => 0,
+            'discount'     => 0,
+            'discount_type'=> 'percent',
+            'status'       => 'received',
+            'site'         => 'mainstoreGRN',
         ];
 
         // Initialize search results for the new row
@@ -386,7 +389,7 @@ class GRN extends Component
                     if (strtolower($item['status'] ?? '') === 'received' && $receivedQty > 0) {
                         $delta = $receivedQty - $previousQty;
                         if ($delta > 0) {
-                            $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                            $itemSite = !empty($item['site']) ? trim($item['site']) : 'mainstoreGRN';
                             $this->updateProductStock($productId, $delta, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                         }
                         $receivedItemsCount++;
@@ -406,7 +409,7 @@ class GRN extends Component
 
                 // Update stock for new received item
                 if ($receivedQty > 0) {
-                    $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                    $itemSite = !empty($item['site']) ? trim($item['site']) : 'mainstoreGRN';
                     $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                     $receivedItemsCount++;
                 }
@@ -435,9 +438,9 @@ class GRN extends Component
         $this->loadPurchaseOrders();
     }
 
-    private function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null, $site = 'Store')
+    private function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null, $site = 'mainstoreGRN')
     {
-        $site = !empty($site) ? trim($site) : 'Store';
+        $site = !empty($site) ? trim($site) : 'mainstoreGRN';
         $stock = ProductStock::where('product_id', $productId)->where('site', $site)->first();
         if (!$stock) {
             $stock = ProductStock::where('product_id', $productId)

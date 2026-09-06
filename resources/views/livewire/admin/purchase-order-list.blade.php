@@ -577,13 +577,19 @@
                                         list="grn-site-list"
                                         class="form-control form-control-sm text-center"
                                         wire:model.live="grnItems.{{ $index }}.site"
-                                        placeholder="Site">
+                                        placeholder="mainstoreGRN">
+                                    <datalist id="grn-site-list">
+                                        <option value="mainstoreGRN">mainstoreGRN (Default)</option>
+                                        @foreach(\App\Models\ProductStock::distinct()->whereNotNull('site')->where('site','!=','')->orderBy('site')->pluck('site') as $siteOpt)
+                                            <option value="{{ $siteOpt }}">{{ $siteOpt }}</option>
+                                        @endforeach
+                                    </datalist>
                                 </td>
                                 <td class="text-center">{{ $item['ordered_qty'] ?? 0 }}</td>
                                 <td>
                                     <input type="number"
                                         class="form-control text-center"
-                                        wire:model.live="grnItems.{{ $index }}.received_quantity"
+                                        wire:model.live="grnItems.{{ $index }}.received_qty"
                                         min="0"
                                         wire:change="calculateGRNTotal({{ $index }})">
                                 </td>

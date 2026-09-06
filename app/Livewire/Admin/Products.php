@@ -58,8 +58,17 @@ class Products extends Component
     public $adjustmentProductId, $adjustmentStockId = null, $adjustmentProductName, $adjustmentAvailableStock, $adjustmentDamageStock,
         $damageQuantity, $availableQuantity;
 
-    // Add Site Stock modal fields
+    // Add Site Stock modal fields (kept for backward compat)
     public $addSiteProductId = null, $addSiteProductName = '', $addSiteProductCode = '', $newSiteName = '', $newSiteStock = 0;
+
+    // Transfer from mainstoreGRN modal fields
+    public $transferProductId = null;
+    public $transferProductName = '';
+    public $transferProductCode = '';
+    public $transferSourceSite = 'mainstoreGRN';  // The site we are transferring FROM
+    public $transferGrnStock = 0;    // Available in source site
+    public $transferRows = [];       // [{site, qty}]
+    public $transferBalance = 0;     // Remaining after allocations
 
     // View Product
     public $viewProduct;
@@ -215,15 +224,17 @@ class Products extends Component
         $brands = BrandList::orderBy('brand_name')->get();
         $categories = CategoryList::orderBy('category_name')->get();
         $suppliers = ProductSupplier::orderBy('name')->get();
-        $sites = ProductStock::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site');
+        $sites = ProductStock::whereNotNull('site')->where('site', '!=', '')->distinct()->orderBy('site')->pluck('site')
+            ->sortBy(fn($s) => $s === 'mainstoreGRN' ? '0' : $s)->values();
 
-        $query = ProductDetail::join('product_prices', 'product_details.id', '=', 'product_prices.product_id')
-            ->join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
+        $query = ProductDetail::leftJoin('product_prices', 'product_details.id', '=', 'product_prices.product_id')
             ->leftJoin('brand_lists', 'product_details.brand_id', '=', 'brand_lists.id')
             ->leftJoin('category_lists', 'product_details.category_id', '=', 'category_lists.id')
+            ->with(['stocks' => function ($q) {
+                $q->orderByRaw("CASE WHEN site = 'mainstoreGRN' THEN 0 ELSE 1 END")->orderBy('site');
+            }])
             ->select(
                 'product_details.id',
-                'product_stocks.id as stock_id',
                 'product_details.code',
                 'product_details.name as product_name',
                 'product_details.model',
@@ -234,35 +245,69 @@ class Products extends Component
                 'product_prices.supplier_price',
                 'product_prices.selling_price',
                 'product_prices.discount_price',
-                'product_stocks.available_stock',
-                'product_stocks.damage_stock',
-                'product_stocks.total_stock',
-                'product_stocks.site',
                 'brand_lists.brand_name as brand',
-                'category_lists.category_name as category'
-            )
-            ->where(function ($query) {
-                $query->where('product_details.name', 'like', '%' . $this->search . '%')
-                    ->orWhere('product_details.code', 'like', '%' . $this->search . '%')
-                    ->orWhere('product_details.model', 'like', '%' . $this->search . '%')
-                    ->orWhere('brand_lists.brand_name', 'like', '%' . $this->search . '%')
-                    ->orWhere('category_lists.category_name', 'like', '%' . $this->search . '%')
-                    ->orWhere('product_details.status', 'like', '%' . $this->search . '%')
-                    ->orWhere('product_details.barcode', 'like', '%' . $this->search . '%');
-            })
-            ->orderByRaw("CASE WHEN product_details.code LIKE 'G-%' THEN 1 ELSE 0 END ASC")
-            ->orderBy('product_details.code', 'asc');
+                'category_lists.category_name as category',
+                DB::raw('(SELECT COALESCE(SUM(ps.available_stock), 0) FROM product_stocks ps WHERE ps.product_id = product_details.id) as total_available_stock'),
+                DB::raw('(SELECT COALESCE(SUM(ps.damage_stock), 0) FROM product_stocks ps WHERE ps.product_id = product_details.id) as total_damage_stock')
+            );
 
-        if ($this->siteFilter !== '') {
-            $query->where('product_stocks.site', $this->siteFilter);
+        if (!empty($this->search)) {
+            $searchTerm = '%' . $this->search . '%';
+            $query->where(function ($q) use ($searchTerm) {
+                $q->where('product_details.name', 'like', $searchTerm)
+                    ->orWhere('product_details.code', 'like', $searchTerm)
+                    ->orWhere('product_details.model', 'like', $searchTerm)
+                    ->orWhere('brand_lists.brand_name', 'like', $searchTerm)
+                    ->orWhere('category_lists.category_name', 'like', $searchTerm)
+                    ->orWhere('product_details.status', 'like', $searchTerm)
+                    ->orWhere('product_details.barcode', 'like', $searchTerm);
+            });
         }
 
+        if ($this->siteFilter !== '') {
+            $query->whereExists(function ($sub) {
+                $sub->select(DB::raw(1))
+                    ->from('product_stocks')
+                    ->whereColumn('product_stocks.product_id', 'product_details.id')
+                    ->where('product_stocks.site', $this->siteFilter);
+            });
+            $quotedSite = DB::getPdo()->quote($this->siteFilter);
+            $query->addSelect(DB::raw('(SELECT COALESCE(SUM(ps.available_stock), 0) FROM product_stocks ps WHERE ps.product_id = product_details.id AND ps.site = ' . $quotedSite . ') as filtered_site_stock'));
+        }
+
+        $query->orderByRaw("CASE WHEN product_details.code LIKE 'G-%' THEN 1 ELSE 0 END ASC")
+            ->orderBy('product_details.code', 'asc');
+
         $totalProductCodes = (clone $query)->count('product_details.id');
-        $stockValueQuery = clone $query;
-        $totalStockValue = (float) ($stockValueQuery
-            ->select(DB::raw('COALESCE(SUM(product_stocks.available_stock * product_prices.selling_price), 0) as stock_value'))
-            ->reorder()
-            ->value('stock_value') ?? 0);
+
+        if ($this->siteFilter !== '') {
+            $totalStockValue = (float) DB::table('product_details')
+                ->join('product_prices', 'product_details.id', '=', 'product_prices.product_id')
+                ->join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
+                ->where('product_stocks.site', $this->siteFilter)
+                ->when(!empty($this->search), function ($q) {
+                    $searchTerm = '%' . $this->search . '%';
+                    $q->where(function ($sub) use ($searchTerm) {
+                        $sub->where('product_details.name', 'like', $searchTerm)
+                            ->orWhere('product_details.code', 'like', $searchTerm)
+                            ->orWhere('product_details.model', 'like', $searchTerm);
+                    });
+                })
+                ->sum(DB::raw('product_stocks.available_stock * product_prices.selling_price'));
+        } else {
+            $totalStockValue = (float) DB::table('product_details')
+                ->join('product_prices', 'product_details.id', '=', 'product_prices.product_id')
+                ->join('product_stocks', 'product_details.id', '=', 'product_stocks.product_id')
+                ->when(!empty($this->search), function ($q) {
+                    $searchTerm = '%' . $this->search . '%';
+                    $q->where(function ($sub) use ($searchTerm) {
+                        $sub->where('product_details.name', 'like', $searchTerm)
+                            ->orWhere('product_details.code', 'like', $searchTerm)
+                            ->orWhere('product_details.model', 'like', $searchTerm);
+                    });
+                })
+                ->sum(DB::raw('product_stocks.available_stock * product_prices.selling_price'));
+        }
 
         if ($this->perPage === 'all') {
             $totalRows = (clone $query)->count();
@@ -935,7 +980,7 @@ class Products extends Component
     // 🔹 View Product Details
     public function viewProductDetails($id)
     {
-        $this->viewProduct = ProductDetail::with(['price', 'stock'])
+        $this->viewProduct = ProductDetail::with(['price', 'stock', 'stocks'])
             ->leftJoin('brand_lists', 'product_details.brand_id', '=', 'brand_lists.id')
             ->leftJoin('category_lists', 'product_details.category_id', '=', 'category_lists.id')
             ->select(
@@ -987,26 +1032,27 @@ class Products extends Component
         ]);
 
         $site = trim($this->newSiteName);
-        $exists = ProductStock::where('product_id', $this->addSiteProductId)
+        $existingStock = ProductStock::where('product_id', $this->addSiteProductId)
             ->where('site', $site)
-            ->exists();
-
-        if ($exists) {
-            $this->addError('newSiteName', "This product already has stock recorded for site '{$site}'.");
-            return;
-        }
+            ->first();
 
         try {
             $initialStock = (int) $this->newSiteStock;
-            ProductStock::create([
-                'product_id' => $this->addSiteProductId,
-                'site' => $site,
-                'available_stock' => $initialStock,
-                'damage_stock' => 0,
-                'total_stock' => $initialStock,
-                'sold_count' => 0,
-                'restocked_quantity' => $initialStock,
-            ]);
+            if ($existingStock) {
+                $existingStock->increment('available_stock', $initialStock);
+                $existingStock->increment('total_stock', $initialStock);
+                $existingStock->increment('restocked_quantity', $initialStock);
+            } else {
+                ProductStock::create([
+                    'product_id' => $this->addSiteProductId,
+                    'site' => $site,
+                    'available_stock' => $initialStock,
+                    'damage_stock' => 0,
+                    'total_stock' => $initialStock,
+                    'sold_count' => 0,
+                    'restocked_quantity' => $initialStock,
+                ]);
+            }
 
             if ($initialStock > 0) {
                 $product = ProductDetail::with('price')->find($this->addSiteProductId);
@@ -1035,6 +1081,191 @@ class Products extends Component
         }
     }
 
+    // ──────────────────────────────────────────────
+    // 🔀 Transfer from mainstoreGRN Modal
+    // ──────────────────────────────────────────────
+
+    public function openTransferModal($productId, $stockId = null)
+    {
+        $product = ProductDetail::with('stocks')->findOrFail($productId);
+
+        $this->transferProductId   = $product->id;
+        $this->transferProductName = $product->name;
+        $this->transferProductCode = $product->code;
+
+        // Determine source site: use the stock record clicked, or mainstoreGRN if available
+        $sourceStock = null;
+        if ($stockId) {
+            $sourceStock = ProductStock::find($stockId);
+        }
+        if (!$sourceStock) {
+            // Try mainstoreGRN first
+            $sourceStock = ProductStock::where('product_id', $productId)
+                ->where('site', 'mainstoreGRN')->first();
+        }
+        if (!$sourceStock) {
+            // Fallback: use first stock record
+            $sourceStock = ProductStock::where('product_id', $productId)->first();
+        }
+
+        $this->transferSourceSite = $sourceStock ? ($sourceStock->site ?? 'mainstoreGRN') : 'mainstoreGRN';
+        $this->transferGrnStock   = $sourceStock ? (int) $sourceStock->available_stock : 0;
+        $this->transferBalance    = $this->transferGrnStock;
+
+        // Pre-populate rows with all existing sites (excluding source site)
+        $existingSites = ProductStock::where('product_id', $productId)
+            ->where('site', '!=', $this->transferSourceSite)
+            ->pluck('site')
+            ->toArray();
+
+        $this->transferRows = array_map(fn($s) => ['site' => $s, 'qty' => 0], $existingSites);
+
+        // If no existing sites, add one blank row
+        if (empty($this->transferRows)) {
+            $this->transferRows = [['site' => '', 'qty' => 0]];
+        }
+
+        $this->resetValidation();
+        $this->js("
+            setTimeout(() => {
+                const modal = new bootstrap.Modal(document.getElementById('transferFromGRNModal'));
+                modal.show();
+            }, 100);
+        ");
+    }
+
+    public function addTransferRow()
+    {
+        $this->transferRows[] = ['site' => '', 'qty' => 0];
+    }
+
+    public function removeTransferRow($index)
+    {
+        array_splice($this->transferRows, $index, 1);
+        $this->recalcTransferBalance();
+    }
+
+    public function updatedTransferSourceSite($site)
+    {
+        $stock = ProductStock::where('product_id', $this->transferProductId)->where('site', $site)->first();
+        $this->transferGrnStock = $stock ? (int) $stock->available_stock : 0;
+        $this->recalcTransferBalance();
+    }
+
+    public function updatedTransferRows()
+    {
+        $this->recalcTransferBalance();
+    }
+
+    private function recalcTransferBalance()
+    {
+        $totalAllocated = collect($this->transferRows)->sum(fn($r) => (int) ($r['qty'] ?? 0));
+        $this->transferBalance = $this->transferGrnStock - $totalAllocated;
+    }
+
+    public function saveTransfer()
+    {
+        if (!$this->transferProductId) return;
+
+        // Validate
+        $totalAllocated = collect($this->transferRows)->sum(fn($r) => (int) ($r['qty'] ?? 0));
+
+        if ($totalAllocated <= 0) {
+            $this->js("Swal.fire('Nothing to Transfer', 'Please enter at least one qty greater than 0.', 'warning')");
+            return;
+        }
+
+        if ($totalAllocated > $this->transferGrnStock) {
+            $this->js("Swal.fire('Over-Allocated!', 'Total transfer qty ({$totalAllocated}) exceeds available stock ({$this->transferGrnStock}) in {$this->transferSourceSite}.', 'error')");
+            return;
+        }
+
+        // Validate each row that has qty > 0 has a site selected
+        foreach ($this->transferRows as $i => $row) {
+            $qty = (int) ($row['qty'] ?? 0);
+            if ($qty > 0 && empty(trim($row['site'] ?? ''))) {
+                $this->addError("transferRows.{$i}.site", 'Please select a target site.');
+                return;
+            }
+            if ($qty > 0 && trim($row['site'] ?? '') === $this->transferSourceSite) {
+                $this->addError("transferRows.{$i}.site", 'Target site cannot be the same as the source site.');
+                return;
+            }
+        }
+
+        try {
+            DB::transaction(function () use ($totalAllocated) {
+                $productId = $this->transferProductId;
+
+                // Deduct from SOURCE site
+                $sourceStock = ProductStock::where('product_id', $productId)
+                    ->where('site', $this->transferSourceSite)
+                    ->lockForUpdate()
+                    ->firstOrFail();
+
+                $sourceStock->available_stock = max(0, $sourceStock->available_stock - $totalAllocated);
+                $sourceStock->total_stock     = max(0, $sourceStock->total_stock - $totalAllocated);
+                $sourceStock->save();
+
+                // Add to each target site
+                foreach ($this->transferRows as $row) {
+                    $qty  = (int) ($row['qty'] ?? 0);
+                    $site = trim($row['site'] ?? '');
+                    if ($qty <= 0 || $site === '') continue;
+
+                    $targetStock = ProductStock::where('product_id', $productId)
+                        ->where('site', $site)
+                        ->first();
+
+                    if ($targetStock) {
+                        // Add to existing stock
+                        $targetStock->available_stock += $qty;
+                        $targetStock->total_stock     += $qty;
+                        $targetStock->restocked_quantity = ($targetStock->restocked_quantity ?? 0) + $qty;
+                        $targetStock->save();
+                    } else {
+                        // Create new stock record for this site
+                        ProductStock::create([
+                            'product_id'          => $productId,
+                            'site'                => $site,
+                            'available_stock'     => $qty,
+                            'damage_stock'        => 0,
+                            'total_stock'         => $qty,
+                            'sold_count'          => 0,
+                            'restocked_quantity'  => $qty,
+                        ]);
+                    }
+
+                    // Create batch entry for transferred qty
+                    $product       = ProductDetail::with('price')->find($productId);
+                    $supplierPrice = $product->price->supplier_price ?? 0;
+                    $sellingPrice  = $product->price->selling_price  ?? 0;
+                    ProductBatch::create([
+                        'product_id'         => $productId,
+                        'batch_number'       => ProductBatch::generateBatchNumber($productId),
+                        'supplier_price'     => $supplierPrice,
+                        'selling_price'      => $sellingPrice,
+                        'quantity'           => $qty,
+                        'remaining_quantity' => $qty,
+                        'received_date'      => now(),
+                        'status'             => 'active',
+                    ]);
+                }
+            });
+
+            ProductApiController::clearCache();
+
+            $this->js("$('#transferFromGRNModal').modal('hide')");
+            $remaining = $this->transferGrnStock - $totalAllocated;
+            $this->js("Swal.fire('Transferred!', 'Stock transferred successfully from {$this->transferSourceSite}. Remaining: {$remaining} pcs.', 'success')");
+            $this->dispatch('refreshPage');
+
+        } catch (\Exception $e) {
+            Log::error('Transfer from GRN failed: ' . $e->getMessage());
+            $this->js("Swal.fire('Error!', 'Transfer failed: " . addslashes($e->getMessage()) . "', 'error')");
+        }
+    }
+
     // 🔹 Open Stock Adjustment Modal
     public function openStockAdjustment($id, $stockId = null)
     {
@@ -1051,6 +1282,15 @@ class Products extends Component
 
         $this->resetValidation();
         $this->js("$('#stockAdjustmentModal').modal('show')");
+    }
+
+    public function updatedAdjustmentStockId($stockId)
+    {
+        $stock = ProductStock::find($stockId);
+        if ($stock) {
+            $this->adjustmentAvailableStock = (int) $stock->available_stock;
+            $this->adjustmentDamageStock = (int) $stock->damage_stock;
+        }
     }
 
     // 🔹 Stock Adjustment Validation Rules

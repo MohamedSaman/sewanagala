@@ -500,9 +500,13 @@
                     <p class="text-muted mb-0">Manage your product catalog and inventory levels efficiently</p>
                 </div>
                 <div class="d-flex align-items-center gap-2 flex-wrap justify-content-end">
-                    <select wire:model.live="siteFilter" class="form-select form-select-sm" style="min-width: 170px;">
+                    <select wire:model.live="siteFilter" class="form-select form-select-sm" style="min-width: 190px;">
                         <option value="">All Sites</option>
-                        @foreach($sites as $siteOption)<option value="{{ $siteOption }}">{{ $siteOption }}</option>@endforeach
+                        @foreach($sites as $siteOption)
+                        <option value="{{ $siteOption }}">
+                            {{ $siteOption === 'mainstoreGRN' ? '⭐ mainstoreGRN (GRN Warehouse)' : $siteOption }}
+                        </option>
+                        @endforeach
                     </select>
                     <div class="px-3 py-2 rounded border bg-white text-center">
                         <small class="d-block text-muted">Available Product Codes</small>
@@ -592,9 +596,8 @@
                                             <th>Product Name</th>
 
                                             <th>Brand</th>
-                                            <th>Model</th>
-                                            <th>Stock</th>
-                                            <th>Site</th>
+                                            <th>Model</th>                                            <th style="min-width: 95px;" class="text-center">Stock</th>
+                                            <th style="min-width: 220px;">Site Stocks</th>
                                             <th>Cost</th>
                                             <th>Selling Price</th>
                                             <th>Status</th>
@@ -604,120 +607,156 @@
                                     <tbody>
                                         @if ($products->count() > 0)
                                         @foreach ($products as $product)
-                                        <tr wire:key="product-{{ $product->id }}-{{ $products->currentPage() }}">
-                                            <td>
-                                                <div class="form-check">
-                                                    <input class="form-check-input product-select-checkbox" type="checkbox" data-product-id="{{ $product->id }}">
-                                                </div>
-                                            </td>
-                                            <td class="ps-4" wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="fw-medium text-dark">{{ $loop->iteration }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="fw-medium text-dark">{{ $product->code }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})" class="product-name-cell">
-                                                <span class="fw-medium text-dark">{{ $product->product_name }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="fw-medium text-dark">{{ $product->brand }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="fw-medium text-dark">{{ $product->model }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                @php
-                                                $availableStock = $product->available_stock ?? 0;
-                                                $stockClass = 'stock-high';
-                                                if ($availableStock <= 5) { $stockClass='stock-low' ; } elseif
-                                                    ($availableStock <=15) { $stockClass='stock-medium' ; } @endphp
-                                                    <span class="fw-medium {{ $stockClass }}">
-                                                    {{ $availableStock }}
-                                                    @if($availableStock <= 5) <i
-                                                        class="bi bi-exclamation-triangle-fill ms-1"></i>
-                                                        @endif
-                                                        </span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="badge bg-light text-dark">{{ $product->site ?? 'Store' }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="fw-bold text-dark">Rs.{{
-                                                    number_format($product->supplier_price, 2) }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                <span class="fw-bold text-dark">Rs.{{
-                                                    number_format($product->selling_price, 2) }}</span>
-                                            </td>
-                                            <td wire:click="viewProductDetails({{ $product->id }})">
-                                                @if ($product->status == 'active')
-                                                <span class="badge bg-success">Active</span>
-                                                @else
-                                                <span class="badge bg-danger">Inactive</span>
-                                                @endif
-                                            </td>
+                                        <tr wire:key="product-{{ $product->id }}">
+                                             <td>
+                                                 <div class="form-check">
+                                                     <input class="form-check-input product-select-checkbox" type="checkbox" data-product-id="{{ $product->id }}">
+                                                 </div>
+                                             </td>
+                                             <td class="ps-4" wire:click="viewProductDetails({{ $product->id }})">
+                                                 <span class="fw-medium text-dark">{{ $loop->iteration + ($products->currentPage() - 1) * (is_numeric($perPage) ? (int)$perPage : 0) }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 <span class="fw-medium text-dark font-monospace">{{ $product->code }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})" class="product-name-cell">
+                                                 <span class="fw-medium text-dark">{{ $product->product_name }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 <span class="fw-medium text-dark">{{ $product->brand ?: '-' }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 <span class="fw-medium text-dark">{{ $product->model ?: '-' }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})" class="text-center">
+                                                 @php
+                                                     $totalStock = (int) ($product->total_available_stock ?? 0);
+                                                     $isFiltered = !empty($siteFilter);
+                                                     $displayStock = $isFiltered && isset($product->filtered_site_stock)
+                                                         ? (int) $product->filtered_site_stock
+                                                         : $totalStock;
 
-                                            <td class="text-end pe-4">
-                                                <div class="dropdown">
-                                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
-                                                        type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                                                        <i class="bi bi-gear-fill"></i> Actions
-                                                    </button>
-                                                    <ul class="dropdown-menu dropdown-menu-end">
-                                                        @if(auth()->user()->hasPermission('menu_products_edit'))
-                                                        <li>
-                                                            <button class="dropdown-item"
-                                                                wire:click="editProduct({{ $product->id }}, {{ $product->stock_id }})"
-                                                                wire:loading.attr="disabled"
-                                                                wire:target="editProduct({{ $product->id }}, {{ $product->stock_id }})">
+                                                     $stockClass = 'stock-high';
+                                                     if ($displayStock <= 0) {
+                                                         $stockClass = 'stock-low';
+                                                     } elseif ($displayStock <= 5) {
+                                                         $stockClass = 'stock-low';
+                                                     } elseif ($displayStock <= 15) {
+                                                         $stockClass = 'stock-medium';
+                                                     }
+                                                 @endphp
+                                                 <div class="d-flex flex-column align-items-center justify-content-center">
+                                                     <span class="fw-bold fs-6 {{ $stockClass }}">
+                                                         {{ $displayStock }}
+                                                         @if($displayStock <= 5)
+                                                             <i class="bi bi-exclamation-triangle-fill ms-1 text-danger small"></i>
+                                                         @endif
+                                                     </span>
+                                                     @if($isFiltered)
+                                                         <span class="badge bg-primary-subtle text-primary border border-primary-subtle mt-1" style="font-size: 10px;">
+                                                             in {{ $siteFilter }}
+                                                         </span>
+                                                         <small class="text-muted" style="font-size: 10px;">Total: {{ $totalStock }}</small>
+                                                     @else
+                                                         <small class="text-muted" style="font-size: 10px;">Total Stock</small>
+                                                     @endif
+                                                 </div>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 <div class="d-flex flex-wrap gap-1 align-items-center" style="max-width: 380px;">
+                                                     @php
+                                                         $productStocks = $product->stocks ?? collect();
+                                                     @endphp
+                                                     @forelse($productStocks as $stk)
+                                                         @php
+                                                             $isGRN = $stk->site === 'mainstoreGRN';
+                                                             $isMatch = !empty($siteFilter) && $stk->site === $siteFilter;
+                                                             $stkQty = (int) $stk->available_stock;
+                                                         @endphp
+                                                         <div class="d-inline-flex align-items-center px-2 py-1 rounded-2 shadow-sm"
+                                                              style="font-size: 11.5px; 
+                                                                     background: {{ $isGRN ? '#f3f8ec' : ($isMatch ? '#e0f2fe' : '#ffffff') }}; 
+                                                                     border: 1px solid {{ $isGRN ? '#8eb922' : ($isMatch ? '#0284c7' : '#e2e8f0') }};">
+                                                             @if($isGRN)
+                                                                 <i class="bi bi-building me-1 text-success" title="GRN Central Warehouse"></i>
+                                                                 <span class="fw-semibold me-1" style="color: #3b5b0c !important;">mainstoreGRN:</span>
+                                                             @else
+                                                                 <i class="bi bi-geo-alt me-1 {{ $isMatch ? 'text-primary' : 'text-secondary' }}" style="font-size: 10px;"></i>
+                                                                 <span class="fw-semibold me-1 text-secondary">{{ $stk->site }}:</span>
+                                                             @endif
+                                                             <strong class="{{ $stkQty > 15 ? 'text-success' : ($stkQty > 0 ? 'text-dark' : 'text-danger') }}">
+                                                                 {{ $stkQty }}
+                                                             </strong>
+                                                         </div>
+                                                     @empty
+                                                         <span class="text-muted small fst-italic">No site stock</span>
+                                                     @endforelse
+                                                 </div>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 <span class="fw-bold text-dark">Rs.{{
+                                                     number_format($product->supplier_price, 2) }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 <span class="fw-bold text-dark">Rs.{{
+                                                     number_format($product->selling_price, 2) }}</span>
+                                             </td>
+                                             <td wire:click="viewProductDetails({{ $product->id }})">
+                                                 @if ($product->status == 'active')
+                                                 <span class="badge bg-success">Active</span>
+                                                 @else
+                                                 <span class="badge bg-danger">Inactive</span>
+                                                 @endif
+                                             </td>
 
-                                                                <span wire:loading
-                                                                    wire:target="editProduct({{ $product->id }}, {{ $product->stock_id }})">
-                                                                    <i
-                                                                        class="spinner-border spinner-border-sm me-2"></i>
-                                                                    Loading...
-                                                                </span>
-                                                                <span wire:loading.remove
-                                                                    wire:target="editProduct({{ $product->id }}, {{ $product->stock_id }})">
-                                                                    <i
-                                                                        class="bi bi-pencil-square text-warning me-2"></i>
-                                                                    Edit
-                                                                </span>
-                                                            </button>
-                                                        </li>
-                                                        @endif
+                                             <td class="text-end pe-4">
+                                                 <div class="dropdown">
+                                                     <button class="btn btn-sm btn-outline-secondary dropdown-toggle"
+                                                         type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                                                         <i class="bi bi-gear-fill"></i> Actions
+                                                     </button>
+                                                     <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                                                         @if(auth()->user()->hasPermission('menu_products_edit'))
+                                                         <li>
+                                                             <button class="dropdown-item"
+                                                                 wire:click="editProduct({{ $product->id }})"
+                                                                 wire:loading.attr="disabled"
+                                                                 wire:target="editProduct({{ $product->id }})">
+                                                                 <i class="bi bi-pencil-square text-warning me-2"></i>
+                                                                 Edit
+                                                             </button>
+                                                         </li>
+                                                         @endif
 
-                                                        @if(auth()->user()->hasPermission('menu_products_stock_adjustment'))
-                                                        <!-- Stock Adjustment Button -->
-                                                        <li>
-                                                            <button class="dropdown-item"
-                                                                wire:click="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})"
-                                                                wire:loading.attr="disabled"
-                                                                wire:target="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})">
+                                                         @if(auth()->user()->hasPermission('menu_products_stock_adjustment'))
+                                                         <li>
+                                                             <button class="dropdown-item"
+                                                                 wire:click="openStockAdjustment({{ $product->id }})"
+                                                                 wire:loading.attr="disabled"
+                                                                 wire:target="openStockAdjustment({{ $product->id }})">
+                                                                 <i class="bi bi-clipboard-plus text-info me-2"></i>
+                                                                 Stock Adjustment
+                                                             </button>
+                                                         </li>
+                                                         @endif
 
-                                                                <span wire:loading
-                                                                    wire:target="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})">
-                                                                    <i
-                                                                        class="spinner-border spinner-border-sm me-2"></i>
-                                                                    Loading...
-                                                                </span>
-                                                                <span wire:loading.remove
-                                                                    wire:target="openStockAdjustment({{ $product->id }}, {{ $product->stock_id }})">
-                                                                    <i class="bi bi-clipboard-plus text-info me-2"></i>
-                                                                    Stock Adjustment
-                                                                </span>
-                                                            </button>
-                                                        </li>
-                                                        @endif
+                                                         <li>
+                                                             <button class="dropdown-item"
+                                                                 wire:click="openTransferModal({{ $product->id }})"
+                                                                 wire:loading.attr="disabled">
+                                                                 <i class="bi bi-arrow-left-right text-success me-2"></i>
+                                                                 Transfer Stock
+                                                             </button>
+                                                         </li>
 
-                                                        <li>
-                                                            <button class="dropdown-item"
-                                                                wire:click="openAddSiteStock({{ $product->id }})"
-                                                                wire:loading.attr="disabled">
-                                                                <i class="bi bi-geo-alt-fill text-primary me-2"></i>
-                                                                Add to Another Site
-                                                            </button>
-                                                        </li>
+                                                         <li>
+                                                             <button class="dropdown-item"
+                                                                 wire:click="openAddSiteStock({{ $product->id }})"
+                                                                 wire:loading.attr="disabled">
+                                                                 <i class="bi bi-geo-alt-fill text-primary me-2"></i>
+                                                                 Add Stock to Another Site
+                                                             </button>
+                                                         </li>
 
                                                         @if(auth()->user()->hasPermission('menu_products_history'))
                                                         <!-- History Button -->
@@ -986,26 +1025,57 @@
                                                 style="width: 40px; height: 40px; display: flex; align-items: center; justify-content: center;">
                                                 <i class="bi bi-boxes"></i>
                                             </div>
-                                            <h6 class="fw-bold mb-0 text-dark">Stock Information</h6>
+                                            <h6 class="fw-bold mb-0 text-dark">Stock Information by Site</h6>
                                         </div>
-                                        <div class="row g-3">
+                                        <div class="row g-3 mb-3">
                                             <div class="col-md-6">
-                                                <div class="stock-card p-3 border rounded-3 text-center">
+                                                <div class="stock-card p-3 border rounded-3 text-center bg-light">
                                                     <i class="bi bi-box-seam text-success fs-3 mb-2"></i>
-                                                    <h5 class="fw-bold mb-1">{{ $viewProduct->stock->available_stock ??
-                                                        0 }}</h5>
-                                                    <small class="text-muted">Available Stock</small>
+                                                    <h4 class="fw-bold mb-1 text-success">{{ $viewProduct->stocks ? $viewProduct->stocks->sum('available_stock') : ($viewProduct->stock->available_stock ?? 0) }}</h4>
+                                                    <small class="text-muted fw-semibold">Total Available Stock (All Sites)</small>
                                                 </div>
                                             </div>
                                             <div class="col-md-6">
-                                                <div class="stock-card p-3 border rounded-3 text-center">
+                                                <div class="stock-card p-3 border rounded-3 text-center bg-light">
                                                     <i class="bi bi-exclamation-triangle text-danger fs-3 mb-2"></i>
-                                                    <h5 class="fw-bold mb-1">{{ $viewProduct->stock->damage_stock ?? 0
-                                                        }}</h5>
-                                                    <small class="text-muted">Damaged Stock</small>
+                                                    <h4 class="fw-bold mb-1 text-danger">{{ $viewProduct->stocks ? $viewProduct->stocks->sum('damage_stock') : ($viewProduct->stock->damage_stock ?? 0) }}</h4>
+                                                    <small class="text-muted fw-semibold">Total Damaged Stock</small>
                                                 </div>
                                             </div>
                                         </div>
+
+                                        @if($viewProduct->stocks && $viewProduct->stocks->isNotEmpty())
+                                        <div class="table-responsive">
+                                            <table class="table table-sm table-bordered align-middle mb-0">
+                                                <thead class="table-light">
+                                                    <tr>
+                                                        <th>Site Name</th>
+                                                        <th class="text-center">Available Stock</th>
+                                                        <th class="text-center">Damaged Stock</th>
+                                                        <th class="text-center">Total Stock</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    @foreach($viewProduct->stocks as $vStock)
+                                                    <tr>
+                                                        <td>
+                                                            @if($vStock->site === 'mainstoreGRN')
+                                                                <span class="badge" style="background:#5c7a2b; color:#fff;">
+                                                                    <i class="bi bi-building me-1"></i>mainstoreGRN
+                                                                </span>
+                                                            @else
+                                                                <i class="bi bi-geo-alt me-1 text-primary"></i><strong>{{ $vStock->site }}</strong>
+                                                            @endif
+                                                        </td>
+                                                        <td class="text-center fw-bold text-success">{{ $vStock->available_stock }}</td>
+                                                        <td class="text-center fw-semibold text-danger">{{ $vStock->damage_stock }}</td>
+                                                        <td class="text-center fw-semibold text-dark">{{ $vStock->total_stock }}</td>
+                                                    </tr>
+                                                    @endforeach
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                        @endif
                                     </div>
 
                                     @if($viewProduct->currentBatchInfo)
@@ -1847,6 +1917,18 @@
                                         <span class="badge bg-danger">{{ $adjustmentDamageStock }}</span>
                                     </div>
                                 </div>
+                                <div class="mt-3 pt-3 border-top">
+                                    <label class="form-label fw-semibold text-dark"><i class="bi bi-geo-alt me-1 text-warning"></i>Select Site for Adjustment:</label>
+                                    <select class="form-select fw-semibold" wire:model.live="adjustmentStockId">
+                                        @if($adjProduct = \App\Models\ProductDetail::with('stocks')->find($adjustmentProductId))
+                                            @foreach($adjProduct->stocks as $stk)
+                                                <option value="{{ $stk->id }}">
+                                                    {{ $stk->site }} — Available: {{ $stk->available_stock }} | Damaged: {{ $stk->damage_stock }}
+                                                </option>
+                                            @endforeach
+                                        @endif
+                                    </select>
+                                </div>
                             </div>
                         </div>
 
@@ -1931,56 +2013,164 @@
             </div>
         </div>
 
-        <!-- Add Site Stock Modal -->
-        <div wire:ignore.self class="modal fade" id="addSiteStockModal" tabindex="-1"
-            aria-labelledby="addSiteStockModalLabel" aria-hidden="true">
-            <div class="modal-dialog">
-                <div class="modal-content">
-                    <div class="modal-header bg-primary text-white">
-                        <h5 class="modal-title fw-bold" id="addSiteStockModalLabel">
-                            <i class="bi bi-geo-alt-fill me-2"></i> Add Stock to Another Site
-                        </h5>
+        <!-- Transfer from mainstoreGRN Modal -->
+        <div wire:ignore.self class="modal fade" id="transferFromGRNModal" tabindex="-1"
+            aria-labelledby="transferFromGRNModalLabel" aria-hidden="true">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content border-0 shadow-lg" style="border-radius:16px;">
+
+                    <!-- Header -->
+                    <div class="modal-header text-white border-0" style="background:linear-gradient(135deg,#3b5b0c 0%,#8eb922 100%);border-radius:16px 16px 0 0;">
+                        <div>
+                            <h5 class="modal-title fw-bold mb-0" id="transferFromGRNModalLabel">
+                                <i class="bi bi-arrow-left-right me-2"></i> Transfer Stock
+                            </h5>
+                            <small class="opacity-75">Move stock from <strong>{{ $transferSourceSite }}</strong> to other branch sites</small>
+                        </div>
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
+
+                    <!-- Body -->
                     <div class="modal-body p-4">
-                        <div class="alert alert-info border-0 mb-3 py-2">
-                            <div class="fw-semibold text-dark">{{ $addSiteProductName }}</div>
-                            <small class="text-muted">Product Code: {{ $addSiteProductCode }}</small>
+
+                        <!-- Product info -->
+                        <div class="alert border-0 mb-4 py-3" style="background:#f0f7e6;border-left:4px solid #8eb922 !important;">
+                            <div class="d-flex align-items-center gap-3">
+                                <div style="width:40px;height:40px;background:linear-gradient(135deg,#3b5b0c,#8eb922);border-radius:10px;display:flex;align-items:center;justify-content:center;">
+                                    <i class="bi bi-box-seam text-white fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">{{ $transferProductName }}</div>
+                                    <small class="text-muted">Code: {{ $transferProductCode }}</small>
+                                </div>
+                            </div>
                         </div>
 
+                        <!-- Source Site Selector -->
                         <div class="mb-3">
-                            <label for="newSiteName" class="form-label fw-semibold">Target Site Name: <span class="text-danger">*</span></label>
-                            <input type="text" list="newSiteNameList" class="form-control" id="newSiteName" wire:model="newSiteName" placeholder="e.g. SC WAREHOUSE, Pannala, Store">
-                            <datalist id="newSiteNameList">
-                                @foreach($sites as $siteOption)
-                                <option value="{{ $siteOption }}">{{ $siteOption }}</option>
+                            <label class="form-label fw-semibold text-dark"><i class="bi bi-box-arrow-right me-1 text-success"></i>Transfer FROM (Source Site):</label>
+                            <select class="form-select fw-semibold" wire:model.live="transferSourceSite">
+                                @if($transferProductObj = \App\Models\ProductDetail::with('stocks')->find($transferProductId))
+                                    @foreach($transferProductObj->stocks as $sStock)
+                                        <option value="{{ $sStock->site }}">
+                                            {{ $sStock->site === 'mainstoreGRN' ? '⭐ mainstoreGRN' : $sStock->site }} (Available: {{ $sStock->available_stock }} pcs)
+                                        </option>
+                                    @endforeach
+                                @endif
+                            </select>
+                        </div>
+
+                        <!-- Stock availability banner -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-6">
+                                <div class="text-center rounded-3 p-3" style="background:#e8f5e9;border:2px solid #4caf50;">
+                                    <div class="fs-4 fw-bold text-success">{{ $transferGrnStock }}</div>
+                                    <small class="text-muted fw-semibold"><i class="bi bi-building me-1"></i>Available in <strong>{{ $transferSourceSite }}</strong></small>
+                                </div>
+                            </div>
+                            <div class="col-6">
+                                <div class="text-center rounded-3 p-3 {{ $transferBalance < 0 ? 'border-danger' : ($transferBalance == 0 ? 'border-secondary' : 'border-primary') }}"
+                                    style="background:{{ $transferBalance < 0 ? '#fff0f0' : ($transferBalance == 0 ? '#f8f9fa' : '#e3f2fd') }};border:2px solid {{ $transferBalance < 0 ? '#dc3545' : ($transferBalance == 0 ? '#6c757d' : '#2196f3') }};">
+                                    <div class="fs-4 fw-bold {{ $transferBalance < 0 ? 'text-danger' : ($transferBalance == 0 ? 'text-secondary' : 'text-primary') }}">
+                                        {{ $transferBalance }}
+                                    </div>
+                                    <small class="text-muted fw-semibold"><i class="bi bi-arrow-return-right me-1"></i>Remaining Balance</small>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if($transferGrnStock <= 0)
+                        <div class="alert alert-warning border-0 py-2">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>No stock available</strong> in <strong>{{ $transferSourceSite }}</strong> for this product.
+                        </div>
+                        @endif
+
+                        <!-- Transfer Rows Table -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <label class="fw-semibold text-dark"><i class="bi bi-geo-alt me-1 text-success"></i>Transfer to Sites</label>
+                                <button type="button" class="btn btn-sm btn-outline-success" wire:click="addTransferRow">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Site
+                                </button>
+                            </div>
+
+                            <div class="table-responsive">
+                                <table class="table table-bordered align-middle mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width:50%">Target Site</th>
+                                            <th style="width:35%">Transfer Qty</th>
+                                            <th style="width:15%" class="text-center">Remove</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach($transferRows as $i => $row)
+                                        <tr wire:key="transfer-row-{{ $i }}">
+                                            <td>
+                                                <input type="text" list="transferSiteList"
+                                                    class="form-control form-control-sm {{ $errors->has('transferRows.'.$i.'.site') ? 'is-invalid' : '' }}"
+                                                    wire:model.live="transferRows.{{ $i }}.site"
+                                                    placeholder="Select or type site name...">
+                                                @error('transferRows.'.$i.'.site')
+                                                    <div class="invalid-feedback">{{ $message }}</div>
+                                                @enderror
+                                            </td>
+                                            <td>
+                                                <input type="number" min="0" max="{{ $transferGrnStock }}"
+                                                    class="form-control form-control-sm text-center"
+                                                    wire:model.live="transferRows.{{ $i }}.qty"
+                                                    placeholder="0">
+                                            </td>
+                                            <td class="text-center">
+                                                @if(count($transferRows) > 1)
+                                                <button type="button" class="btn btn-sm btn-outline-danger" wire:click="removeTransferRow({{ $i }})">
+                                                    <i class="bi bi-x-lg"></i>
+                                                </button>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <!-- Site datalist (exclude source site) -->
+                            <datalist id="transferSiteList">
+                                @foreach($sites as $siteOpt)
+                                    @if($siteOpt !== $transferSourceSite)
+                                    <option value="{{ $siteOpt }}">{{ $siteOpt }}</option>
+                                    @endif
                                 @endforeach
                             </datalist>
-                            @error('newSiteName')
-                            <span class="text-danger small d-block mt-1">* {{ $message }}</span>
-                            @enderror
-                            <div class="form-text">Choose an existing site or type a new one. A product can only have one stock entry per site.</div>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="newSiteStock" class="form-label fw-semibold">Initial Available Stock: <span class="text-danger">*</span></label>
-                            <input type="number" min="0" class="form-control" id="newSiteStock" wire:model="newSiteStock" placeholder="0">
-                            @error('newSiteStock')
-                            <span class="text-danger small d-block mt-1">* {{ $message }}</span>
-                            @enderror
+                        @if($transferBalance < 0)
+                        <div class="alert alert-danger border-0 py-2 mt-2">
+                            <i class="bi bi-exclamation-circle me-2"></i>
+                            <strong>Over-allocated!</strong> Total qty exceeds available stock by {{ abs($transferBalance) }} pcs. Please reduce quantities.
                         </div>
+                        @endif
+
                     </div>
-                    <div class="modal-footer">
+
+                    <!-- Footer -->
+                    <div class="modal-footer border-0 pt-0">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                        <button type="button" class="btn btn-primary" wire:click="saveSiteStock" wire:loading.attr="disabled">
-                            <span wire:loading wire:target="saveSiteStock">
-                                <i class="spinner-border spinner-border-sm me-1"></i> Saving...
+                        <button type="button" class="btn text-white fw-semibold"
+                            style="background:linear-gradient(135deg,#3b5b0c,#8eb922);"
+                            wire:click="saveTransfer"
+                            wire:loading.attr="disabled"
+                            {{ ($transferBalance < 0 || $transferGrnStock <= 0) ? 'disabled' : '' }}>
+                            <span wire:loading wire:target="saveTransfer">
+                                <i class="spinner-border spinner-border-sm me-1"></i> Transferring...
                             </span>
-                            <span wire:loading.remove wire:target="saveSiteStock">
-                                <i class="bi bi-check-circle me-1"></i> Add Site Stock
+                            <span wire:loading.remove wire:target="saveTransfer">
+                                <i class="bi bi-arrow-left-right me-1"></i> Confirm Transfer
                             </span>
                         </button>
                     </div>
+
                 </div>
             </div>
         </div>
