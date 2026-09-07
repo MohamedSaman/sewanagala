@@ -87,6 +87,29 @@
         </div>
     </div>
 
+    {{-- Third Row of Cards (Supplier & Salary Payments) --}}
+    <div class="row mb-4">
+        {{-- Supplier Payments --}}
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #e53935 0%, #ef5350 100%);">
+                <div class="card-body text-white text-center py-4">
+                    <h2 class="mb-0 fw-bold">{{ number_format($supplierPayment, 2) }}</h2>
+                    <p class="mb-0 text-uppercase fw-semibold" style="letter-spacing: 1px;">SUPPLIER PAYMENTS (CASH)</p>
+                </div>
+            </div>
+        </div>
+
+        {{-- Salary Payments --}}
+        <div class="col-md-6 mb-3">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #c2185b 0%, #e91e63 100%);">
+                <div class="card-body text-white text-center py-4">
+                    <h2 class="mb-0 fw-bold">{{ number_format($salaryPayment, 2) }}</h2>
+                    <p class="mb-0 text-uppercase fw-semibold" style="letter-spacing: 1px;">SALARY PAYMENTS (CASH)</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
     {{-- Current Cash Card --}}
     <div class="row mb-4">
         <div class="col-12">

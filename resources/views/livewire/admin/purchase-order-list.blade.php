@@ -575,12 +575,12 @@
                                 <td>
                                     <input type="text"
                                         list="grn-site-list"
-                                        class="form-control form-control-sm text-center"
+                                        class="form-control form-control-sm text-center fw-semibold text-success"
                                         wire:model.live="grnItems.{{ $index }}.site"
                                         placeholder="mainstoreGRN">
                                     <datalist id="grn-site-list">
-                                        <option value="mainstoreGRN">mainstoreGRN (Default)</option>
-                                        @foreach(\App\Models\ProductStock::distinct()->whereNotNull('site')->where('site','!=','')->orderBy('site')->pluck('site') as $siteOpt)
+                                        <option value="mainstoreGRN">mainstoreGRN (Main Store - Default)</option>
+                                        @foreach(\App\Models\ProductStock::distinct()->whereNotNull('site')->where('site','!=','')->where('site','!=','mainstoreGRN')->orderBy('site')->pluck('site') as $siteOpt)
                                             <option value="{{ $siteOpt }}">{{ $siteOpt }}</option>
                                         @endforeach
                                     </datalist>

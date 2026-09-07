@@ -34,12 +34,15 @@ class Salary extends Model
         'salary_month',
         'salary_type',
         'basic_salary',
+        'previous_adjustment',
         'bonus',
         'allowance',
         'deductions',
         'overtime',
         'additional_salary',
         'net_salary',
+        'paid_amount',
+        'remaining_amount',
         'total_hours',
         'overtime_hours',
         'payment_status',
@@ -53,12 +56,15 @@ class Salary extends Model
     protected $casts = [
         'salary_month' => 'date',
         'basic_salary' => 'decimal:2',
+        'previous_adjustment' => 'decimal:2',
         'bonus' => 'decimal:2',
         'allowance' => 'decimal:2',
         'deductions' => 'decimal:2',
         'overtime' => 'decimal:2',
         'additional_salary' => 'decimal:2',
         'net_salary' => 'decimal:2',
+        'paid_amount' => 'decimal:2',
+        'remaining_amount' => 'decimal:2',
         'total_hours' => 'decimal:2',
         'overtime_hours' => 'decimal:2',
     ];
@@ -69,5 +75,13 @@ class Salary extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    /**
+     * Get payments recorded for this salary.
+     */
+    public function payments()
+    {
+        return $this->hasMany(SalaryPayment::class, 'salary_id', 'salary_id');
     }
 }

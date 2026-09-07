@@ -362,22 +362,40 @@
                 </div>
             </div>
             <div class="pos-modal-body">
-                <div class="text-center mb-4">
-                    <div class="pos-cash-icon-wrap mx-auto mb-3">
-                        <i class="bi bi-safe2"></i>
+                {{-- Yesterday Closing Cash Banner --}}
+                <div class="p-3 mb-3 rounded-3 border d-flex align-items-center justify-content-between" style="background:#f0fdf4; border-color:#86efac !important;">
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center" style="width:42px; height:42px; background:#dcfce7; color:#16a34a;">
+                            <i class="bi bi-clock-history fs-5"></i>
+                        </div>
+                        <div>
+                            <small class="text-muted d-block fw-semibold" style="font-size:0.78rem; text-transform:uppercase; letter-spacing:0.5px;">Yesterday Closing Cash</small>
+                            <span class="fw-bold fs-5 text-success">
+                                Rs. {{ number_format((float)$yesterdayClosingCash, 2) }}
+                            </span>
+                        </div>
                     </div>
-                    <p class="text-muted mb-0 small">Enter the opening cash amount to start today's POS session.</p>
+                    @if((float)$yesterdayClosingCash > 0)
+                    <button type="button" class="btn btn-sm btn-outline-success" wire:click="$set('openingCashAmount', {{ (float)$yesterdayClosingCash }})" title="Restore yesterday closing amount">
+                        <i class="bi bi-arrow-repeat me-1"></i>Reset
+                    </button>
+                    @endif
                 </div>
+
                 <div class="mb-3">
-                    <label class="form-label fw-semibold pos-label">Opening Cash (Rs.) <span class="text-danger">*</span></label>
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                        <label class="form-label fw-semibold pos-label mb-0">Opening Cash (Rs.) <span class="text-danger">*</span></label>
+                        <small class="text-muted" style="font-size:0.75rem;">Edit if actual cash in hand differs</small>
+                    </div>
                     <div class="input-group input-group-lg">
                         <span class="input-group-text pos-input-prefix">Rs.</span>
                         <input type="number"
                             class="form-control pos-input-lg text-center fw-bold"
                             wire:model="openingCashAmount"
+                            wire:keydown.enter="submitOpeningCash"
                             step="0.01"
                             min="0"
-                            placeholder="0"
+                            placeholder="{{ (float)$yesterdayClosingCash > 0 ? number_format((float)$yesterdayClosingCash, 2, '.', '') : '0.00' }}"
                             autofocus>
                     </div>
                     @error('openingCashAmount')
@@ -386,7 +404,7 @@
                 </div>
                 <div class="pos-info-box">
                     <i class="bi bi-info-circle me-2"></i>
-                    This amount will be recorded as your starting cash for today's transactions.
+                    Yesterday's closing cash (<strong>Rs. {{ number_format((float)$yesterdayClosingCash, 2) }}</strong>) will be saved as today's opening cash unless you edit the amount above.
                 </div>
             </div>
             <div class="pos-modal-footer justify-content-center">
@@ -1286,6 +1304,10 @@
                     <div class="pos-reg-row">
                         <span>Supplier Cash Payments</span>
                         <span>Rs.{{ number_format($sessionSummary['supplier_cash_payment'] ?? 0, 2) }}</span>
+                    </div>
+                    <div class="pos-reg-row">
+                        <span>Staff Salary (Cash)</span>
+                        <span>Rs.{{ number_format($sessionSummary['salary_payment'] ?? 0, 2) }}</span>
                     </div>
                     <div class="pos-reg-row total">
                         <span class="fw-bold">Total Cash in Hand</span>

@@ -47,6 +47,7 @@ class StoreBilling extends Component
     // Opening Cash Modal
     public $showOpeningCashModal = false;
     public $openingCashAmount = '';
+    public $yesterdayClosingCash = 0;
 
     // Session Summary Data
     public $sessionSummary = [];
@@ -205,21 +206,40 @@ class StoreBilling extends Component
 
         // Check for open session
         $this->currentSession = POSSession::getTodaySession(Auth::id());
-        // If no session exists OR session is closed, auto-open with 0 opening cash
-        // This ensures:
-        // 1. First time opening POS each day (no session exists)
-        // 2. After closing and reopening POS (session exists but is closed)
+
+        // Find the most recent closed session before today (yesterday or latest previous day)
+        $previousClosedSession = POSSession::where('user_id', Auth::id())
+            ->whereDate('session_date', '<', now()->toDateString())
+            ->where('status', 'closed')
+            ->orderByDesc('session_date')
+            ->orderByDesc('id')
+            ->first();
+
+        if (!$previousClosedSession) {
+            // Also check any user's closed session if current user has none
+            $previousClosedSession = POSSession::whereDate('session_date', '<', now()->toDateString())
+                ->where('status', 'closed')
+                ->orderByDesc('session_date')
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $previousClosing = 0;
+        if ($previousClosedSession && $previousClosedSession->closing_cash !== null) {
+            $previousClosing = (float) $previousClosedSession->closing_cash;
+        } else {
+            $cashRecord = DB::table('cash_in_hands')->whereIn('key', ['cash_amount', 'cash in hand'])->where('value', '>', 0)->first();
+            $previousClosing = $cashRecord ? (float) $cashRecord->value : 0;
+        }
+
+        $this->yesterdayClosingCash = $previousClosing;
+
+        // If no session exists for today OR the session is closed:
+        // Open the Cash in Hand modal so the user enters starting cash when opening the register for the first time today
         if (!$this->currentSession || $this->currentSession->isClosed()) {
-
-            // Always set opening cash to 0 (auto-add 0 every day)
-            $this->openingCashAmount = '';
-
-            // Auto-submit opening cash without showing modal
-            try {
-                $this->submitOpeningCash();
-            } catch (\Exception $e) {
-                Log::error('Failed to auto-open POS session on mount: ' . $e->getMessage());
-            }
+            $this->showOpeningCashModal = true;
+            // Pre-fill with previous day's closing cash
+            $this->openingCashAmount = $previousClosing > 0 ? $previousClosing : '';
         }
 
         $this->loadCustomers();
@@ -1845,6 +1865,11 @@ class StoreBilling extends Component
      */
     public function submitOpeningCash()
     {
+        // If amount was left empty or cleared, default to yesterday's closing cash
+        if ($this->openingCashAmount === '' || $this->openingCashAmount === null) {
+            $this->openingCashAmount = $this->yesterdayClosingCash ?? 0;
+        }
+
         $this->validate([
             'openingCashAmount' => 'required|numeric|min:0',
         ]);
@@ -1875,23 +1900,24 @@ class StoreBilling extends Component
                 $this->currentSession = POSSession::openSession(Auth::id(), $this->openingCashAmount);
                 $message = 'POS Session Started!';
 
-                // Update cash_in_hands table only for new sessions (first time opening)
-                $cashInHandRecord = DB::table('cash_in_hands')->where('key', 'cash_amount')->first();
-
-                if ($cashInHandRecord) {
-                    DB::table('cash_in_hands')
-                        ->where('key', 'cash_amount')
-                        ->update([
+                // Update cash_in_hands table for new sessions (first time opening)
+                foreach (['cash_amount', 'cash in hand'] as $key) {
+                    $cashInHandRecord = DB::table('cash_in_hands')->where('key', $key)->first();
+                    if ($cashInHandRecord) {
+                        DB::table('cash_in_hands')
+                            ->where('key', $key)
+                            ->update([
+                                'value' => $this->openingCashAmount,
+                                'updated_at' => now()
+                            ]);
+                    } else {
+                        DB::table('cash_in_hands')->insert([
+                            'key' => $key,
                             'value' => $this->openingCashAmount,
+                            'created_at' => now(),
                             'updated_at' => now()
                         ]);
-                } else {
-                    DB::table('cash_in_hands')->insert([
-                        'key' => 'cash_amount',
-                        'value' => $this->openingCashAmount,
-                        'created_at' => now(),
-                        'updated_at' => now()
-                    ]);
+                    }
                 }
             }
 
@@ -2054,8 +2080,13 @@ class StoreBilling extends Component
             ->whereDate('payment_date', $today)
             ->sum('amount');
 
+        $salaryPaymentToday = DB::table('salary_payments')
+            ->where('payment_method', 'cash')
+            ->whereDate('payment_date', $today)
+            ->sum('amount');
+
         // Calculate Total Cash in Hand
-        $totalCashInHand = ($sessionOpeningCash + $totalCashPaymentsToday) - ($refundsToday + $expensesToday + $cashDepositBank + $supplierCashPaymentToday);
+        $totalCashInHand = ($sessionOpeningCash + $totalCashPaymentsToday) - ($refundsToday + $expensesToday + $cashDepositBank + $supplierCashPaymentToday + $salaryPaymentToday);
 
         // Update session data
         $this->currentSession->update([
@@ -2067,7 +2098,8 @@ class StoreBilling extends Component
             'refunds' => $refundsToday,
             'expenses' => $expensesToday,
             'cash_deposit_bank' => $cashDepositBank,
-            'spupplier_payment' => $supplierPaymentToday,
+            'supplier_payment' => $supplierCashPaymentToday,
+            'salary_payment' => $salaryPaymentToday,
         ]);
 
         // Prepare summary data
@@ -2107,6 +2139,7 @@ class StoreBilling extends Component
             'cash_deposit_bank' => $cashDepositBank,
             'supplier_payment' => $supplierPaymentToday,
             'supplier_cash_payment' => $supplierCashPaymentToday,
+            'salary_payment' => $salaryPaymentToday,
 
             // Final Cash in Hand
             'expected_cash' => $totalCashInHand,
@@ -2165,6 +2198,8 @@ class StoreBilling extends Component
                 'refunds' => $this->sessionSummary['refunds'] ?? 0,
                 'expenses' => $this->sessionSummary['expenses'] ?? 0,
                 'cash_deposit_bank' => $this->sessionSummary['cash_deposit_bank'] ?? 0,
+                'supplier_payment' => $this->sessionSummary['supplier_cash_payment'] ?? ($this->sessionSummary['supplier_payment'] ?? 0),
+                'salary_payment' => $this->sessionSummary['salary_payment'] ?? 0,
                 'status' => 'closed',
                 'closed_at' => now(),
                 'notes' => $this->closeRegisterNotes ?? 'Closed from close register modal',

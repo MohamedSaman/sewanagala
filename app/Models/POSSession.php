@@ -24,6 +24,8 @@ class POSSession extends Model
         'credit_card_payment',
         'bank_transfer',
         'late_payment_bulk',
+        'supplier_payment',
+        'salary_payment',
         'refunds',
         'expenses',
         'cash_deposit_bank',
@@ -45,6 +47,8 @@ class POSSession extends Model
         'credit_card_payment' => 'decimal:2',
         'bank_transfer' => 'decimal:2',
         'late_payment_bulk' => 'decimal:2',
+        'supplier_payment' => 'decimal:2',
+        'salary_payment' => 'decimal:2',
         'refunds' => 'decimal:2',
         'expenses' => 'decimal:2',
         'cash_deposit_bank' => 'decimal:2',
@@ -113,7 +117,7 @@ class POSSession extends Model
      */
     public function calculateDifference()
     {
-        $expectedCash = $this->opening_cash + $this->cash_sales - $this->refunds - $this->expenses - $this->cash_deposit_bank;
+        $expectedCash = $this->opening_cash + $this->cash_sales + ($this->late_payment_bulk ?? 0) - $this->refunds - $this->expenses - $this->cash_deposit_bank - ($this->supplier_payment ?? 0) - ($this->salary_payment ?? 0);
         $difference = $this->closing_cash - $expectedCash;
 
         $this->update([

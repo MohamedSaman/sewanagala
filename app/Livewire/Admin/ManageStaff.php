@@ -4,6 +4,7 @@ namespace App\Livewire\Admin;
 
 use Exception;
 use App\Models\User;
+use App\Models\UserDetail;
 use Livewire\Component;
 use Livewire\Attributes\Title;
 use Livewire\Attributes\Layout;
@@ -16,36 +17,28 @@ class ManageStaff extends Component
     use WithDynamicLayout;
 
     public $viewUserDetail = [];
+
+    // Create Staff fields (only requested fields)
     public $name;
     public $contactNumber;
     public $email;
+    public $gender = '';
+    public $basic_salary;
+    public $address;
     public $password;
     public $confirmPassword;
 
-    // UserDetails fields
-    public $dob;
-    public $age;
-    public $nic_num;
-    public $address;
-    public $work_role;
-    public $work_type;
-    public $department;
-    public $gender;
-    public $join_date;
-    public $fingerprint_id;
-    public $allowance;
-    public $basic_salary;
-    public $user_image;
-    public $description;
-    public $status = 'active';
-
+    // Edit Staff fields
     public $editStaffId;
     public $editName;
     public $editContactNumber;
     public $editEmail;
+    public $editGender = '';
+    public $editBasicSalary;
+    public $editAddress;
     public $editPassword;
     public $editConfirmPassword;
-    public $editStatus; // Add this line
+    public $editStatus = 'active';
 
     public $deleteId;
     public $showEditModal = false;
@@ -56,7 +49,7 @@ class ManageStaff extends Component
 
     public function render()
     {
-        $query = User::where('role', 'staff')->latest();
+        $query = User::where('role', 'staff')->with('userDetail')->latest();
 
         if ($this->perPage === 'all') {
             $totalRows = (clone $query)->count();
@@ -68,6 +61,7 @@ class ManageStaff extends Component
             'staffs' => $staffs,
         ])->layout($this->layout);
     }
+
     public function updatedPerPage()
     {
         $this->resetPage();
@@ -78,32 +72,22 @@ class ManageStaff extends Component
      * ---------------------------- */
     public function viewDetails($id)
     {
-        $user = User::find($id);
+        $user = User::with('userDetail')->find($id);
         if (!$user) {
             $this->js("Swal.fire('Error!', 'Staff Not Found', 'error')");
             return;
         }
 
-        $userDetail = \App\Models\UserDetail::where('user_id', $user->id)->first();
+        $userDetail = $user->userDetail;
         $this->viewUserDetail = [
             'name' => $user->name,
             'contact' => $user->contact,
             'email' => $user->email,
             'role' => $user->role,
-            'dob' => $userDetail ? $userDetail->dob : '-',
-            'age' => $userDetail ? $userDetail->age : '-',
-            'nic_num' => $userDetail ? $userDetail->nic_num : '-',
-            'address' => $userDetail ? $userDetail->address : '-',
-            'work_role' => $userDetail ? $userDetail->work_role : '-',
-            'department' => $userDetail ? $userDetail->department : '-',
-            'gender' => $userDetail ? $userDetail->gender : '-',
-            'join_date' => $userDetail ? $userDetail->join_date : '-',
-            'fingerprint_id' => $userDetail ? $userDetail->fingerprint_id : '-',
-            'allowance' => $userDetail ? $userDetail->allowance : '-',
-            'basic_salary' => $userDetail ? $userDetail->basic_salary : '-',
-            'user_image' => $userDetail ? $userDetail->user_image : null,
-            'description' => $userDetail ? $userDetail->description : '-',
-            'status' => $userDetail ? $userDetail->status : '-',
+            'gender' => $userDetail ? ucfirst($userDetail->gender ?? '-') : '-',
+            'basic_salary' => $userDetail && $userDetail->basic_salary !== null ? 'Rs. ' . number_format($userDetail->basic_salary, 2) : '-',
+            'address' => $userDetail && $userDetail->address ? $userDetail->address : '-',
+            'status' => $userDetail ? $userDetail->status : 'active',
         ];
 
         $this->showViewModal = true;
@@ -124,30 +108,21 @@ class ManageStaff extends Component
             'name',
             'contactNumber',
             'email',
+            'gender',
+            'basic_salary',
+            'address',
             'password',
             'confirmPassword',
-            'dob',
-            'age',
-            'nic_num',
-            'address',
-            'work_role',
-            'work_type',
-            'department',
-            'gender',
-            'join_date',
-            'fingerprint_id',
-            'allowance',
-            'basic_salary',
-            'user_image',
-            'description',
-            'status',
             'editStaffId',
             'editName',
             'editContactNumber',
             'editEmail',
+            'editGender',
+            'editBasicSalary',
+            'editAddress',
             'editPassword',
             'editConfirmPassword',
-            'editStatus' // Add editStatus here
+            'editStatus'
         ]);
         $this->resetErrorBag();
     }
@@ -164,26 +139,14 @@ class ManageStaff extends Component
     public function saveStaff()
     {
         $this->validate([
-            'name' => 'required',
-            'contactNumber' => 'required| max:10',
+            'name' => 'required|string|max:255',
+            'contactNumber' => 'required|string|max:15',
             'email' => 'required|email|unique:users,email',
+            'gender' => 'nullable|in:male,female,other',
+            'basic_salary' => 'required|numeric|min:0',
+            'address' => 'nullable|string',
             'password' => 'required|min:8',
             'confirmPassword' => 'required|min:8|same:password',
-            'dob' => 'nullable|date',
-            'age' => 'nullable|integer|min:0',
-            'nic_num' => 'nullable|string',
-            'address' => 'nullable|string',
-            'work_role' => 'nullable|string',
-            'work_type' => 'required|in:daily,monthly',
-            'department' => 'nullable|string',
-            'gender' => 'nullable|in:male,female,other',
-            'join_date' => 'nullable|date',
-            'fingerprint_id' => 'nullable|string',
-            'allowance' => 'nullable|string',
-            'basic_salary' => 'nullable|numeric',
-            'user_image' => 'nullable|string',
-            'description' => 'nullable|string',
-            'status' => 'required|in:active,inactive',
         ]);
 
         try {
@@ -193,38 +156,31 @@ class ManageStaff extends Component
                 'email' => $this->email,
                 'password' => Hash::make($this->password),
                 'role' => 'staff',
-                'profile_photo_path' => $this->user_image,
             ]);
 
-            // Convert allowance to array if not empty
-            $allowanceArray = null;
-            if (!empty($this->allowance)) {
-                $allowanceArray = array_map('trim', explode(',', $this->allowance));
-            }
-
-            \App\Models\UserDetail::create([
+            UserDetail::create([
                 'user_id' => $user->id,
-                'dob' => $this->dob,
-                'age' => $this->age,
-                'nic_num' => $this->nic_num,
-                'address' => $this->address,
-                'work_role' => $this->work_role,
-                'work_type' => $this->work_type,
-                'department' => $this->department,
-                'gender' => $this->gender,
-                'join_date' => $this->join_date,
-                'fingerprint_id' => $this->fingerprint_id,
-                'allowance' => $allowanceArray,
+                'gender' => $this->gender ?: null,
                 'basic_salary' => $this->basic_salary,
-                'user_image' => $this->user_image,
-                'description' => $this->description,
-                'status' => $this->status,
+                'address' => $this->address ?: null,
+                'status' => 'active',
+                'work_type' => 'monthly',
+                'dob' => null,
+                'age' => null,
+                'nic_num' => null,
+                'work_role' => null,
+                'department' => null,
+                'join_date' => null,
+                'fingerprint_id' => null,
+                'allowance' => null,
+                'user_image' => null,
+                'description' => null,
             ]);
 
             $this->js("Swal.fire('Success!', 'Staff Created Successfully', 'success')");
             $this->closeModal();
         } catch (Exception $e) {
-            $this->js("Swal.fire('Error!', '" . $e->getMessage() . "', 'error')");
+            $this->js("Swal.fire('Error!', '" . addslashes($e->getMessage()) . "', 'error')");
         }
     }
 
@@ -233,19 +189,22 @@ class ManageStaff extends Component
      * ---------------------------- */
     public function editStaff($id)
     {
-        $user = User::find($id);
+        $user = User::with('userDetail')->find($id);
         if (!$user) {
             $this->js("Swal.fire('Error!', 'Staff Not Found', 'error')");
             return;
         }
 
-        $userDetail = \App\Models\UserDetail::where('user_id', $user->id)->first();
+        $userDetail = $user->userDetail;
 
         $this->editStaffId = $user->id;
         $this->editName = $user->name;
         $this->editContactNumber = $user->contact;
         $this->editEmail = $user->email;
-        $this->editStatus = $userDetail ? $userDetail->status : 'active'; // Set status
+        $this->editGender = $userDetail ? ($userDetail->gender ?? '') : '';
+        $this->editBasicSalary = $userDetail ? $userDetail->basic_salary : null;
+        $this->editAddress = $userDetail ? $userDetail->address : '';
+        $this->editStatus = $userDetail ? $userDetail->status : 'active';
         $this->editPassword = '';
         $this->editConfirmPassword = '';
 
@@ -255,10 +214,13 @@ class ManageStaff extends Component
     public function updateStaff()
     {
         $validationRules = [
-            'editName' => 'required',
-            'editContactNumber' => 'required | max:10',
+            'editName' => 'required|string|max:255',
+            'editContactNumber' => 'required|string|max:15',
             'editEmail' => 'required|email|unique:users,email,' . $this->editStaffId,
-            'editStatus' => 'required|in:active,inactive', // Add status validation
+            'editGender' => 'nullable|in:male,female,other',
+            'editBasicSalary' => 'required|numeric|min:0',
+            'editAddress' => 'nullable|string',
+            'editStatus' => 'required|in:active,inactive',
         ];
 
         // Only validate password if it's provided
@@ -276,19 +238,21 @@ class ManageStaff extends Component
                 $user->contact = $this->editContactNumber;
                 $user->email = $this->editEmail;
 
-                // Only update password if a new one was provided
                 if (!empty($this->editPassword)) {
                     $user->password = Hash::make($this->editPassword);
                 }
 
                 $user->save();
 
-                // Update user details status
-                $userDetail = \App\Models\UserDetail::where('user_id', $this->editStaffId)->first();
-                if ($userDetail) {
-                    $userDetail->status = $this->editStatus;
-                    $userDetail->save();
-                }
+                UserDetail::updateOrCreate(
+                    ['user_id' => $this->editStaffId],
+                    [
+                        'gender' => $this->editGender ?: null,
+                        'basic_salary' => $this->editBasicSalary,
+                        'address' => $this->editAddress ?: null,
+                        'status' => $this->editStatus,
+                    ]
+                );
 
                 $this->js("Swal.fire('Success!', 'Staff Updated Successfully', 'success')");
                 $this->closeModal();
@@ -296,7 +260,7 @@ class ManageStaff extends Component
                 $this->js("Swal.fire('Error!', 'Staff Not Found', 'error')");
             }
         } catch (Exception $e) {
-            $this->js("Swal.fire('Error!', '" . $e->getMessage() . "', 'error')");
+            $this->js("Swal.fire('Error!', '" . addslashes($e->getMessage()) . "', 'error')");
         }
     }
 
@@ -322,7 +286,7 @@ class ManageStaff extends Component
             $this->js("Swal.fire('Success!', 'Staff deleted successfully.', 'success')");
             $this->cancelDelete();
         } catch (Exception $e) {
-            $this->js("Swal.fire('Error!', '" . $e->getMessage() . "', 'error')");
+            $this->js("Swal.fire('Error!', '" . addslashes($e->getMessage()) . "', 'error')");
         }
     }
 }

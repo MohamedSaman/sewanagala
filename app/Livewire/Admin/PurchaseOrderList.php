@@ -750,7 +750,7 @@ class PurchaseOrderList extends Component
         }
     }
 
-    protected function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null, $site = 'Store')
+    protected function updateProductStock($productId, $quantity, $supplierPrice = 0, $sellingPrice = 0, $purchaseOrderId = null, $site = 'mainstoreGRN')
     {
         $product = ProductDetail::with('price')->find($productId);
         if (!$product) return;
@@ -765,7 +765,7 @@ class PurchaseOrderList extends Component
             $sellingPrice = $productPrice->selling_price;
         }
 
-        $site = !empty($site) ? trim($site) : 'Store';
+        $site = !empty($site) ? trim($site) : 'mainstoreGRN';
         $stock = ProductStock::where('product_id', $productId)->where('site', $site)->first();
         if (!$stock) {
             $stock = ProductStock::where('product_id', $productId)
@@ -992,7 +992,7 @@ class PurchaseOrderList extends Component
                         $orderItem->save();
 
                         if ($status === 'received' && $receivedQty > 0) {
-                            $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                            $itemSite = !empty($item['site']) ? trim($item['site']) : 'mainstoreGRN';
                             $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                         }
                     }
@@ -1014,7 +1014,7 @@ class PurchaseOrderList extends Component
                     ]);
 
                     if ($receivedQty > 0) {
-                        $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+                        $itemSite = !empty($item['site']) ? trim($item['site']) : 'mainstoreGRN';
                         $this->updateProductStock($productId, $receivedQty, $supplierPrice, $sellingPrice, $this->selectedPO->id, $itemSite);
                     }
                 }
@@ -1094,7 +1094,7 @@ class PurchaseOrderList extends Component
         $item = $this->grnItems[$index];
         $productId = $item['product_id'];
         $receivedQty = (int) ($item['received_quantity'] ?? 0);
-        $itemSite = !empty($item['site']) ? trim($item['site']) : 'Store';
+        $itemSite = !empty($item['site']) ? trim($item['site']) : 'mainstoreGRN';
 
         // Mark the item as received in the UI
         $this->grnItems[$index]['status'] = 'received';
@@ -1183,8 +1183,7 @@ class PurchaseOrderList extends Component
             $this->grnItems[$index]['code'] = $product->code;
             $this->grnItems[$index]['name'] = $product->name;
             if (empty($this->grnItems[$index]['site'])) {
-                $stock = ProductStock::where('product_id', $productId)->first();
-                $this->grnItems[$index]['site'] = $stock->site ?? 'Store';
+                $this->grnItems[$index]['site'] = 'mainstoreGRN';
             }
 
             // Get product price
@@ -1212,7 +1211,7 @@ class PurchaseOrderList extends Component
             'product_id' => null,
             'code' => '',
             'name' => '',
-            'site' => 'Store',
+            'site' => 'mainstoreGRN',
             'ordered_qty' => 0,
             'received_quantity' => 0,
             'unit_price' => 0,
@@ -1243,11 +1242,7 @@ class PurchaseOrderList extends Component
             // Set default discount_type to 'percent'
             $discountType = $item->discount_type ?? 'percent';
 
-            $defaultSite = 'Store';
-            $stock = ProductStock::where('product_id', $item->product_id)->first();
-            if ($stock && !empty($stock->site)) {
-                $defaultSite = $stock->site;
-            }
+            $defaultSite = 'mainstoreGRN';
 
             $this->grnItems[] = [
                 'id' => $item->id,
@@ -1290,11 +1285,7 @@ class PurchaseOrderList extends Component
                 // Set default discount_type to 'percent'
                 $discountType = $item->discount_type ?? 'percent';
 
-                $defaultSite = 'Store';
-                $stock = ProductStock::where('product_id', $item->product_id)->first();
-                if ($stock && !empty($stock->site)) {
-                    $defaultSite = $stock->site;
-                }
+                $defaultSite = 'mainstoreGRN';
 
                 $this->grnItems[] = [
                     'id' => $item->id,

@@ -45,6 +45,7 @@ use App\Http\Controllers\StaffSaleExportController;
 use App\Livewire\Admin\GRN;
 use App\Livewire\Admin\StaffAttendance;
 use App\Livewire\Admin\StaffSallary;
+use App\Livewire\Admin\StaffSalary;
 use App\Livewire\Admin\LoanManage;
 use App\Livewire\Admin\Quotation;
 use App\Livewire\Admin\SalesApproval;
@@ -188,7 +189,8 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
         Route::get('/download/sale/{id}', [PrintController::class, 'downloadSale'])->name('download.sale');
         Route::get('/due-payments', AdminDuePayments::class)->name('due-payments');
         Route::get('/staff-attendance', StaffAttendance::class)->name('staff-attendance');
-        Route::get('/staff-salary', StaffSallary::class)->name('staff-salary');
+        Route::get('/staff-salary', StaffSalary::class)->name('staff-salary');
+        Route::get('/salary', StaffSalary::class)->name('salary');
         Route::get('/loan-management', LoanManage::class)->name('loan-management');
         Route::get('/sales-system', SalesSystem::class)->name('sales-system');
         Route::get('/pos-sales', PosSales::class)->name('pos-sales');
@@ -303,7 +305,8 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
         // HR/Staff Management
         Route::get('/manage-staff', ManageStaff::class)->name('manage-staff');
         Route::get('/staff-attendance', StaffAttendance::class)->name('staff-attendance');
-        Route::get('/staff-salary', StaffSallary::class)->name('staff-salary');
+        Route::get('/staff-salary', StaffSalary::class)->name('staff-salary');
+        Route::get('/salary', StaffSalary::class)->name('salary');
         Route::get('/staff-due-details', StaffDueDetails::class)->name('staff-due-details');
 
         // Reports & Analytics

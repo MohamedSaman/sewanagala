@@ -34,13 +34,13 @@
                         <i class="bi bi-wallet2 me-2" style="color:#8eb922;"></i>Today's Cash Summary
                     </h5>
                     <div class="row">
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="text-center p-3 rounded" style="background-color: #f8f9fa;">
                                 <h6 class="text-muted mb-1">Opening Cash</h6>
                                 <h5 class="fw-bold" style="color:#3b5b0c;">Rs. {{ number_format($openingCash, 2) }}</h5>
                             </div>
                         </div>
-                        <div class="col-md-3">
+                        <div class="col-md-2">
                             <div class="text-center p-3 rounded" style="background-color: #d4edda;">
                                 <h6 class="text-muted mb-1">Cash Sales</h6>
                                 <h5 class="fw-bold text-success">Rs. {{ number_format($todayCashAmount, 2) }}</h5>
@@ -59,9 +59,15 @@
                             </div>
                         </div>
                         <div class="col-md-2">
+                            <div class="text-center p-3 rounded" style="background-color: #fde8e8;">
+                                <h6 class="text-muted mb-1">Salary Pay</h6>
+                                <h5 class="fw-bold text-danger">Rs. {{ number_format($todaySalaryPayments, 2) }}</h5>
+                            </div>
+                        </div>
+                        <div class="col-md-2">
                             <div class="text-center p-3 rounded" style="background-color: #d1ecf1;">
                                 <h6 class="text-muted mb-1">Remaining</h6>
-                                <h5 class="fw-bold text-info">Rs. {{ number_format($openingCash + $todayCashAmount - $todayExpenses - $todayRefunds - $todaySupplierPayments - $todayDepositAmount, 2) }}</h5>
+                                <h5 class="fw-bold text-info">Rs. {{ number_format($openingCash + $todayCashAmount - $todayExpenses - $todayRefunds - $todaySupplierPayments - $todaySalaryPayments - $todayDepositAmount, 2) }}</h5>
                             </div>
                         </div>
                     </div>
@@ -219,13 +225,17 @@
                                 <span class="fw-semibold text-danger">Rs. {{ number_format($todaySupplierPayments, 2) }}</span>
                             </div>
                             <div class="d-flex justify-content-between small mb-2">
+                                <span class="text-muted">Today's Salary Payments:</span>
+                                <span class="fw-semibold text-danger">Rs. {{ number_format($todaySalaryPayments, 2) }}</span>
+                            </div>
+                            <div class="d-flex justify-content-between small mb-2">
                                 <span class="text-muted">Today's Deposit Amount:</span>
                                 <span class="fw-semibold" style="color:#8eb922;">Rs. {{ number_format($todayDepositAmount, 2) }}</span>
                             </div>
                             <hr style="border-color: #8eb922;">
                             <div class="d-flex justify-content-between small">
                                 <span class="text-muted fw-bold">Remaining Cash:</span>
-                                <span class="fw-bold text-success">Rs. {{ number_format($openingCash + $todayCashAmount - $todayExpenses - $todayRefunds - $todaySupplierPayments - $todayDepositAmount, 2) }}</span>
+                                <span class="fw-bold text-success">Rs. {{ number_format($openingCash + $todayCashAmount - $todayExpenses - $todayRefunds - $todaySupplierPayments - $todaySalaryPayments - $todayDepositAmount, 2) }}</span>
                             </div>
                         </div>
 

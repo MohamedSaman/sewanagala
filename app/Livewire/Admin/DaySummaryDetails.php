@@ -32,6 +32,7 @@ class DaySummaryDetails extends Component
     public $cashDeposit = 0;
     public $currentCash = 0;
     public $supplierPayment = 0;
+    public $salaryPayment = 0;
 
     public function mount($sessionId)
     {
@@ -72,6 +73,10 @@ class DaySummaryDetails extends Component
         $this->supplierPayment = PurchasePayment::whereDate('payment_date', $sessionDate)
             ->where('payment_method', 'cash')
             ->sum('amount');
+        $this->salaryPayment = DB::table('salary_payments')
+            ->whereDate('payment_date', $sessionDate)
+            ->where('payment_method', 'cash')
+            ->sum('amount');
 
         // Expenses
         $this->expenses = $this->session->expenses;
@@ -83,7 +88,7 @@ class DaySummaryDetails extends Component
         $this->cashDeposit = $this->session->cash_deposit_bank;
 
         // Current Cash
-        $this->currentCash = $this->cashInHand + $this->cashSales + $this->lateCashPayments - $this->expenses - $this->returns - $this->cashDeposit - $this->supplierPayment;
+        $this->currentCash = $this->cashInHand + $this->cashSales + $this->lateCashPayments - $this->expenses - $this->returns - $this->cashDeposit - $this->supplierPayment - $this->salaryPayment;
     }
 
     public function goBack()

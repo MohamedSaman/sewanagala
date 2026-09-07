@@ -37,6 +37,7 @@ class Deposits extends Component
     public $todayDepositAmount = 0;
     public $todaySupplierPayments = 0;
     public $todayAdminCashAmount = 0;
+    public $todaySalaryPayments = 0;
 
     protected $rules = [
         'depositDate' => 'required|date',
@@ -90,6 +91,12 @@ class Deposits extends Component
             }
         }
 
+        // Cash salary payments for today
+        $this->todaySalaryPayments = \Illuminate\Support\Facades\DB::table('salary_payments')
+            ->where('payment_method', 'cash')
+            ->whereDate('payment_date', now()->toDateString())
+            ->sum('amount');
+
         $this->todayDepositAmount = Deposit::whereDate('date', now())->sum('amount');
     }
 
@@ -97,6 +104,7 @@ class Deposits extends Component
     {
         $this->reset(['depositAmount', 'depositDescription']);
         $this->depositDate = now()->format('Y-m-d');
+        $this->loadCashSummary();
         $this->showAddModal = true;
     }
 

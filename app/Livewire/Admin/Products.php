@@ -1235,21 +1235,6 @@ class Products extends Component
                             'restocked_quantity'  => $qty,
                         ]);
                     }
-
-                    // Create batch entry for transferred qty
-                    $product       = ProductDetail::with('price')->find($productId);
-                    $supplierPrice = $product->price->supplier_price ?? 0;
-                    $sellingPrice  = $product->price->selling_price  ?? 0;
-                    ProductBatch::create([
-                        'product_id'         => $productId,
-                        'batch_number'       => ProductBatch::generateBatchNumber($productId),
-                        'supplier_price'     => $supplierPrice,
-                        'selling_price'      => $sellingPrice,
-                        'quantity'           => $qty,
-                        'remaining_quantity' => $qty,
-                        'received_date'      => now(),
-                        'status'             => 'active',
-                    ]);
                 }
             });
 

@@ -1241,6 +1241,11 @@
                         <i class="bi bi-person-badge"></i> <span>List Staff</span>
                     </a>
                 </li>
+                <li class="nav-item">
+                    <a class="nav-link py-2" href="{{ route('admin.staff-salary') }}">
+                        <i class="bi bi-wallet2"></i> <span>Staff Salary</span>
+                    </a>
+                </li>
             </ul>
         </div>
     </li>
