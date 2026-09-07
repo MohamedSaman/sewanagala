@@ -349,51 +349,95 @@
     ════════════════════════════════════════════ --}}
     @if($showOpeningCashModal)
     <div class="pos-overlay" style="z-index:2000;">
-        <div class="pos-modal-card" style="max-width:440px;">
+        <div class="pos-modal-card" style="max-width:460px;">
             <div class="pos-modal-header">
                 <div class="d-flex align-items-center gap-2">
                     <div class="pos-icon-badge">
                         <i class="bi bi-cash-stack"></i>
                     </div>
                     <div>
-                        <h5 class="mb-0 fw-bold">Open POS Session</h5>
+                        <h5 class="mb-0 fw-bold">{{ ($currentSession && $currentSession->isOpen()) ? 'Update Opening Balance' : 'Open POS Session' }}</h5>
                         <small class="opacity-75">{{ now()->format('l, F d, Y') }}</small>
                     </div>
                 </div>
-            </div>
-            <div class="pos-modal-body">
-                <div class="text-center mb-4">
-                    <div class="pos-cash-icon-wrap mx-auto mb-3">
-                        <i class="bi bi-safe2"></i>
-                    </div>
-                    <p class="text-muted mb-0 small">Enter the opening cash amount to start today's POS session.</p>
-                </div>
-                <div class="mb-3">
-                    <label class="form-label fw-semibold pos-label">Opening Cash (Rs.) <span class="text-danger">*</span></label>
-                    <div class="input-group input-group-lg">
-                        <span class="input-group-text pos-input-prefix">Rs.</span>
-                        <input type="number"
-                            class="form-control pos-input-lg text-center fw-bold"
-                            wire:model="openingCashAmount"
-                            step="0.01"
-                            min="0"
-                            placeholder="0"
-                            autofocus>
-                    </div>
-                    @error('openingCashAmount')
-                    <div class="pos-field-error">{{ $message }}</div>
-                    @enderror
-                </div>
-                <div class="pos-info-box">
-                    <i class="bi bi-info-circle me-2"></i>
-                    This amount will be recorded as your starting cash for today's transactions.
-                </div>
-            </div>
-            <div class="pos-modal-footer justify-content-center">
-                <button type="button" class="btn pos-btn-gradient btn-lg px-5" wire:click="submitOpeningCash">
-                    <i class="bi bi-play-circle me-2"></i>Start POS Session
+                @if($currentSession && $currentSession->isOpen())
+                <button type="button" class="btn pos-btn-close" wire:click="$set('showOpeningCashModal', false)">
+                    <i class="bi bi-x-lg"></i>
                 </button>
+                @endif
             </div>
+            <form wire:submit.prevent="submitOpeningCash">
+                <div class="pos-modal-body">
+                    <div class="text-center mb-3">
+                        <div class="pos-cash-icon-wrap mx-auto mb-2">
+                            <i class="bi bi-safe2"></i>
+                        </div>
+                        <p class="text-muted mb-0 small">Enter the opening cash balance to start today's POS session.</p>
+                    </div>
+
+                    @if($yesterdayClosingCash !== null && $yesterdayClosingCash > 0)
+                    <div class="p-2 mb-2 rounded border d-flex justify-content-between align-items-center" style="background: rgba(13, 110, 253, 0.08); font-size: 0.84rem;">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-clock-history text-primary"></i>
+                            <span>Last Closing Cash:</span>
+                            <strong class="text-primary">Rs. {{ number_format($yesterdayClosingCash, 2) }}</strong>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-primary py-0 px-2 fw-semibold" style="font-size: 0.75rem;" wire:click="$set('openingCashAmount', '{{ number_format($yesterdayClosingCash, 2, '.', '') }}')">
+                            Use
+                        </button>
+                    </div>
+                    @endif
+
+                    @if($systemCashInHand !== null && $systemCashInHand > 0)
+                    <div class="p-2 mb-3 rounded border d-flex justify-content-between align-items-center" style="background: rgba(25, 135, 84, 0.08); font-size: 0.84rem;">
+                        <div class="d-flex align-items-center gap-2">
+                            <i class="bi bi-wallet2 text-success"></i>
+                            <span>System Cash-in-Hand:</span>
+                            <strong class="text-success">Rs. {{ number_format($systemCashInHand, 2) }}</strong>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-outline-success py-0 px-2 fw-semibold" style="font-size: 0.75rem;" wire:click="$set('openingCashAmount', '{{ number_format($systemCashInHand, 2, '.', '') }}')">
+                            Use
+                        </button>
+                    </div>
+                    @endif
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold pos-label">Opening Cash (Rs.) <span class="text-danger">*</span></label>
+                        <div class="input-group input-group-lg">
+                            <span class="input-group-text pos-input-prefix">Rs.</span>
+                            <input type="number"
+                                class="form-control pos-input-lg text-center fw-bold"
+                                wire:model="openingCashAmount"
+                                step="0.01"
+                                min="0"
+                                placeholder="0.00"
+                                autofocus>
+                        </div>
+                        @error('openingCashAmount')
+                        <div class="pos-field-error text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+                    <div class="pos-info-box">
+                        <i class="bi bi-info-circle me-2"></i>
+                        This amount will be recorded as your starting cash for today's transactions.
+                    </div>
+                </div>
+                <div class="pos-modal-footer justify-content-center gap-2">
+                    @if($currentSession && $currentSession->isOpen())
+                    <button type="button" class="btn btn-light px-4" wire:click="$set('showOpeningCashModal', false)">
+                        Cancel
+                    </button>
+                    @endif
+                    <button type="submit" class="btn pos-btn-gradient btn-lg px-5" wire:loading.attr="disabled">
+                        <span wire:loading.remove wire:target="submitOpeningCash">
+                            <i class="bi bi-play-circle me-2"></i>{{ ($currentSession && $currentSession->isOpen()) ? 'Save Opening Balance' : 'Start POS Session' }}
+                        </span>
+                        <span wire:loading wire:target="submitOpeningCash">
+                            <span class="spinner-border spinner-border-sm me-2"></span>Saving...
+                        </span>
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
     @endif
@@ -488,10 +532,16 @@
             </div>
         </div>
         <div class="d-flex align-items-center gap-3 pos-top-status">
-            @if($currentSession)
-            <div class="pos-session-badge">
+            @if($currentSession && $currentSession->isOpen())
+            <div class="pos-session-badge" style="cursor: pointer;" wire:click="openOpeningCashModal" title="Click to view or edit Opening Balance">
                 <i class="bi bi-circle-fill text-success me-1" style="font-size:0.5rem; vertical-align:middle;"></i>
-                <span>Session Active</span>
+                <span>Session Active (Opening: Rs. {{ number_format($currentSession->opening_cash, 2) }})</span>
+                <i class="bi bi-pencil-square ms-1 opacity-75" style="font-size: 0.75rem;"></i>
+            </div>
+            @else
+            <div class="pos-session-badge text-warning border-warning" style="cursor: pointer;" wire:click="openOpeningCashModal" title="Click to open session">
+                <i class="bi bi-exclamation-circle-fill text-warning me-1" style="font-size:0.6rem; vertical-align:middle;"></i>
+                <span>Open Session</span>
             </div>
             @endif
             <button id="themeToggleBtn" type="button" class="btn btn-sm theme-toggle-btn d-flex align-items-center gap-1" title="Switch theme">

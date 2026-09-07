@@ -47,6 +47,8 @@ class StoreBilling extends Component
     // Opening Cash Modal
     public $showOpeningCashModal = false;
     public $openingCashAmount = '';
+    public $yesterdayClosingCash = null;
+    public $systemCashInHand = null;
 
     // Session Summary Data
     public $sessionSummary = [];
@@ -139,50 +141,48 @@ class StoreBilling extends Component
             $this->editSaleId = $editSaleId;
         }
 
-        // Check for yesterday's open session - auto-close it
-        $yesterdaySession = POSSession::where('user_id', Auth::id())
-            ->whereDate('session_date', now()->subDay()->toDateString())
+        // Auto-close any previous unclosed sessions prior to today
+        $previousOpenSessions = POSSession::where('user_id', Auth::id())
+            ->whereDate('session_date', '<', now()->toDateString())
             ->where('status', 'open')
-            ->first();
+            ->get();
 
-        if ($yesterdaySession) {
-            // Auto-close yesterday's session
+        foreach ($previousOpenSessions as $prevSession) {
             try {
                 DB::beginTransaction();
 
-                // Calculate yesterday's summary
-                $yesterday = now()->subDay()->toDateString();
+                $sessionDate = $prevSession->session_date ? Carbon::parse($prevSession->session_date)->toDateString() : now()->subDay()->toDateString();
 
-                // Get yesterday's POS sales
-                $yesterdaySales = Sale::whereDate('created_at', $yesterday)
+                // Get POS sales for that date
+                $prevSales = Sale::whereDate('created_at', $sessionDate)
                     ->where('sale_type', 'pos')
                     ->pluck('id');
 
-                $cashPayments = Payment::whereIn('sale_id', $yesterdaySales)
+                $cashPayments = Payment::whereIn('sale_id', $prevSales)
                     ->where('payment_method', 'cash')
                     ->sum('amount');
 
-                $totalSales = Sale::whereDate('created_at', $yesterday)
+                $totalSales = Sale::whereDate('created_at', $sessionDate)
                     ->where('sale_type', 'pos')
                     ->sum('total_amount');
 
                 $expenses = DB::table('expenses')
-                    ->whereDate('date', $yesterday)
+                    ->whereDate('date', $sessionDate)
                     ->sum('amount');
 
                 $refunds = DB::table('returns_products')
-                    ->whereDate('created_at', $yesterday)
+                    ->whereDate('created_at', $sessionDate)
                     ->sum('total_amount');
 
                 $deposits = DB::table('deposits')
-                    ->whereDate('date', $yesterday)
+                    ->whereDate('date', $sessionDate)
                     ->sum('amount');
 
                 // Calculate expected closing cash
-                $expectedClosingCash = $yesterdaySession->opening_cash + $cashPayments - $expenses - $refunds - $deposits;
+                $expectedClosingCash = $prevSession->opening_cash + $cashPayments - $expenses - $refunds - $deposits;
 
                 // Close the session
-                $yesterdaySession->update([
+                $prevSession->update([
                     'closing_cash' => $expectedClosingCash,
                     'total_sales' => $totalSales,
                     'cash_sales' => $cashPayments,
@@ -191,35 +191,46 @@ class StoreBilling extends Component
                     'cash_deposit_bank' => $deposits,
                     'status' => 'closed',
                     'closed_at' => now(),
-                    'notes' => 'Auto-closed at midnight',
+                    'notes' => ($prevSession->notes ? $prevSession->notes . ' | ' : '') . 'Auto-closed at day rollover',
                 ]);
 
                 DB::commit();
 
-                Log::info("Auto-closed yesterday's POS session for user: " . Auth::id());
+                Log::info("Auto-closed previous POS session {$prevSession->id} for user: " . Auth::id());
             } catch (\Exception $e) {
                 DB::rollBack();
-                Log::error("Failed to auto-close yesterday's session: " . $e->getMessage());
+                Log::error("Failed to auto-close previous session {$prevSession->id}: " . $e->getMessage());
             }
         }
 
-        // Check for open session
+        // Check for open session today
         $this->currentSession = POSSession::getTodaySession(Auth::id());
-        // If no session exists OR session is closed, auto-open with 0 opening cash
-        // This ensures:
-        // 1. First time opening POS each day (no session exists)
-        // 2. After closing and reopening POS (session exists but is closed)
+
+        // If no open session exists for today (1st time opening today, or closed), show opening balance modal
         if (!$this->currentSession || $this->currentSession->isClosed()) {
+            // Get last closed session's closing cash for reference
+            $lastClosedSession = POSSession::where('user_id', Auth::id())
+                ->where('status', 'closed')
+                ->whereDate('session_date', '<', now()->toDateString())
+                ->orderByDesc('session_date')
+                ->first();
 
-            // Always set opening cash to 0 (auto-add 0 every day)
-            $this->openingCashAmount = '';
+            $cashInHandRecord = DB::table('cash_in_hands')->where('key', 'cash in hand')->first()
+                ?? DB::table('cash_in_hands')->where('key', 'cash_amount')->first();
 
-            // Auto-submit opening cash without showing modal
-            try {
-                $this->submitOpeningCash();
-            } catch (\Exception $e) {
-                Log::error('Failed to auto-open POS session on mount: ' . $e->getMessage());
+            $this->yesterdayClosingCash = $lastClosedSession ? (float)$lastClosedSession->closing_cash : null;
+            $this->systemCashInHand = $cashInHandRecord ? (float)$cashInHandRecord->value : 0;
+
+            if ($this->yesterdayClosingCash !== null && $this->yesterdayClosingCash > 0) {
+                $this->openingCashAmount = number_format($this->yesterdayClosingCash, 2, '.', '');
+            } elseif ($this->systemCashInHand > 0) {
+                $this->openingCashAmount = number_format($this->systemCashInHand, 2, '.', '');
+            } else {
+                $this->openingCashAmount = '0';
             }
+
+            // Show opening balance modal for 1st time in the day
+            $this->showOpeningCashModal = true;
         }
 
         $this->loadCustomers();
@@ -1852,46 +1863,53 @@ class StoreBilling extends Component
         try {
             DB::beginTransaction();
 
-            // Check if a closed session exists for today
-            $existingSession = POSSession::where('user_id', Auth::id())
-                ->whereDate('session_date', now()->toDateString())
-                ->where('status', 'closed')
-                ->first();
-
-            if ($existingSession) {
-                // Reopen existing closed session with new opening cash
-                $existingSession->update([
-                    'status' => 'open',
+            if ($this->currentSession && $this->currentSession->isOpen()) {
+                // Updating opening cash of current session
+                $this->currentSession->update([
                     'opening_cash' => $this->openingCashAmount,
-                    'closed_at' => null,
-                    'notes' => ($existingSession->notes ? $existingSession->notes . ' | ' : '') . 'Reopened with opening cash: Rs. ' . number_format($this->openingCashAmount, 2)
                 ]);
-                $this->currentSession = $existingSession;
-                $message = 'POS Session Reopened!';
-
-                // For reopening, don't update cash_in_hands as it should retain the session's opening amount
+                $message = 'Opening Balance Updated!';
             } else {
-                // Create new POS session with opening cash (first time opening)
-                $this->currentSession = POSSession::openSession(Auth::id(), $this->openingCashAmount);
-                $message = 'POS Session Started!';
+                // Check if a closed session exists for today
+                $existingSession = POSSession::where('user_id', Auth::id())
+                    ->whereDate('session_date', now()->toDateString())
+                    ->where('status', 'closed')
+                    ->first();
 
-                // Update cash_in_hands table only for new sessions (first time opening)
-                $cashInHandRecord = DB::table('cash_in_hands')->where('key', 'cash_amount')->first();
-
-                if ($cashInHandRecord) {
-                    DB::table('cash_in_hands')
-                        ->where('key', 'cash_amount')
-                        ->update([
-                            'value' => $this->openingCashAmount,
-                            'updated_at' => now()
-                        ]);
-                } else {
-                    DB::table('cash_in_hands')->insert([
-                        'key' => 'cash_amount',
-                        'value' => $this->openingCashAmount,
-                        'created_at' => now(),
-                        'updated_at' => now()
+                if ($existingSession) {
+                    // Reopen existing closed session with new opening cash
+                    $existingSession->update([
+                        'status' => 'open',
+                        'opening_cash' => $this->openingCashAmount,
+                        'closed_at' => null,
+                        'notes' => ($existingSession->notes ? $existingSession->notes . ' | ' : '') . 'Reopened with opening cash: Rs. ' . number_format($this->openingCashAmount, 2)
                     ]);
+                    $this->currentSession = $existingSession;
+                    $message = 'POS Session Reopened!';
+                } else {
+                    // Create new POS session with opening cash (first time opening)
+                    $this->currentSession = POSSession::openSession(Auth::id(), $this->openingCashAmount);
+                    $message = 'POS Session Started!';
+
+                    // Update cash_in_hands table for both keys
+                    foreach (['cash_amount', 'cash in hand'] as $key) {
+                        $cashInHandRecord = DB::table('cash_in_hands')->where('key', $key)->first();
+                        if ($cashInHandRecord) {
+                            DB::table('cash_in_hands')
+                                ->where('key', $key)
+                                ->update([
+                                    'value' => $this->openingCashAmount,
+                                    'updated_at' => now()
+                                ]);
+                        } else {
+                            DB::table('cash_in_hands')->insert([
+                                'key' => $key,
+                                'value' => $this->openingCashAmount,
+                                'created_at' => now(),
+                                'updated_at' => now()
+                            ]);
+                        }
+                    }
                 }
             }
 
@@ -1906,6 +1924,17 @@ class StoreBilling extends Component
             Log::error('Failed to open/reopen POS session: ' . $e->getMessage());
             $this->dispatch('toast', type: 'error', message: 'Failed to start POS session: ' . addslashes($e->getMessage()));
         }
+    }
+
+    /**
+     * Open the Opening Cash Modal (allows cashier/admin to view/edit opening cash)
+     */
+    public function openOpeningCashModal()
+    {
+        if ($this->currentSession) {
+            $this->openingCashAmount = (string) $this->currentSession->opening_cash;
+        }
+        $this->showOpeningCashModal = true;
     }
 
     /**
