@@ -122,19 +122,45 @@ class ProfitLoss extends Component
         $this->netProfit = \App\Helpers\DataMaskHelper::scaleAmount($this->netProfit);
 
         foreach ($this->revenueBreakdown as $k => $v) {
-            $this->revenueBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            if (is_array($v)) {
+                if (isset($v['amount'])) $v['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($v['amount']);
+                $this->revenueBreakdown[$k] = $v;
+            } else {
+                $this->revenueBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            }
         }
         foreach ($this->expenseBreakdown as $k => $v) {
-            $this->expenseBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            if (is_array($v)) {
+                if (isset($v['amount'])) $v['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($v['amount']);
+                if (isset($v['count'])) $v['count'] = \App\Helpers\DataMaskHelper::scaleCount($v['count']);
+                $this->expenseBreakdown[$k] = $v;
+            } else {
+                $this->expenseBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            }
         }
         foreach ($this->paymentBreakdown as $k => $v) {
-            $this->paymentBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            if (is_array($v)) {
+                if (isset($v['amount'])) $v['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($v['amount']);
+                $this->paymentBreakdown[$k] = $v;
+            } else {
+                $this->paymentBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            }
         }
         foreach ($this->salaryBreakdown as $k => $v) {
-            $this->salaryBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            if (is_array($v)) {
+                if (isset($v['amount'])) $v['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($v['amount']);
+                $this->salaryBreakdown[$k] = $v;
+            } else {
+                $this->salaryBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            }
         }
         foreach ($this->allOutgoingBreakdown as $k => $v) {
-            $this->allOutgoingBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            if (is_array($v)) {
+                if (isset($v['amount'])) $v['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($v['amount']);
+                $this->allOutgoingBreakdown[$k] = $v;
+            } else {
+                $this->allOutgoingBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            }
         }
         foreach ($this->categoryWiseExpenses as $k => $v) {
             $this->categoryWiseExpenses[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
@@ -156,7 +182,7 @@ class ProfitLoss extends Component
         foreach ($this->monthlyTrends as $month => $data) {
             if (is_array($data)) {
                 foreach ($data as $k => $v) {
-                    if (is_numeric($v)) {
+                    if (is_numeric($v) && $k !== 'month') {
                         $this->monthlyTrends[$month][$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
                     }
                 }
