@@ -21,11 +21,13 @@ class CustomLogin extends Component
     public function login()
     {
         $this->validate([
-            'email' => 'required|email',
+            'email' => 'required',
             'password' => 'required',
         ]);
 
-        $user = \App\Models\User::where('email', $this->email)->first();
+        $user = \App\Models\User::where('email', $this->email)
+            ->orWhere('name', $this->email)
+            ->first();
 
         if ($user && \Illuminate\Support\Facades\Hash::check($this->password, $user->password)) {
             // Check if Two-Factor Authentication is enabled for the user

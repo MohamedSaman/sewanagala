@@ -98,8 +98,69 @@ class ProfitLoss extends Component
             $this->calculateAllOutgoing();
             $this->calculateMonthlyTrends();
             $this->calculateNetProfit();
+            $this->applyMasking();
         } catch (\Exception $e) {
             Log::error('P&L Calculation Error: ' . $e->getMessage());
+        }
+    }
+
+    private function applyMasking()
+    {
+        if (\App\Helpers\DataMaskHelper::isFullAccess()) {
+            return;
+        }
+
+        $this->totalRevenue = \App\Helpers\DataMaskHelper::scaleAmount($this->totalRevenue);
+        $this->totalCOGS = \App\Helpers\DataMaskHelper::scaleAmount($this->totalCOGS);
+        $this->grossProfit = \App\Helpers\DataMaskHelper::scaleAmount($this->grossProfit);
+        $this->totalExpenses = \App\Helpers\DataMaskHelper::scaleAmount($this->totalExpenses);
+        $this->totalSalaries = \App\Helpers\DataMaskHelper::scaleAmount($this->totalSalaries);
+        $this->totalOutgoing = \App\Helpers\DataMaskHelper::scaleAmount($this->totalOutgoing);
+        $this->totalReturns = \App\Helpers\DataMaskHelper::scaleAmount($this->totalReturns);
+        $this->totalReturnsCOGS = \App\Helpers\DataMaskHelper::scaleAmount($this->totalReturnsCOGS);
+        $this->returnImpact = \App\Helpers\DataMaskHelper::scaleAmount($this->returnImpact);
+        $this->netProfit = \App\Helpers\DataMaskHelper::scaleAmount($this->netProfit);
+
+        foreach ($this->revenueBreakdown as $k => $v) {
+            $this->revenueBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->expenseBreakdown as $k => $v) {
+            $this->expenseBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->paymentBreakdown as $k => $v) {
+            $this->paymentBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->salaryBreakdown as $k => $v) {
+            $this->salaryBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->allOutgoingBreakdown as $k => $v) {
+            $this->allOutgoingBreakdown[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->categoryWiseExpenses as $k => $v) {
+            $this->categoryWiseExpenses[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->paymentMethodWiseRevenue as $k => $v) {
+            $this->paymentMethodWiseRevenue[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->expenseByCategoryTotals as $k => $v) {
+            $this->expenseByCategoryTotals[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->incomeTotals as $k => $v) {
+            if ($k !== 'Gross Profit Margin (%)' && $k !== 'Net Profit Margin (%)') {
+                $this->incomeTotals[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+            }
+        }
+        foreach ($this->outgoingTotals as $k => $v) {
+            $this->outgoingTotals[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+        }
+        foreach ($this->monthlyTrends as $month => $data) {
+            if (is_array($data)) {
+                foreach ($data as $k => $v) {
+                    if (is_numeric($v)) {
+                        $this->monthlyTrends[$month][$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+                    }
+                }
+            }
         }
     }
 

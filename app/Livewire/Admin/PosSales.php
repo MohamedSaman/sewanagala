@@ -94,6 +94,17 @@ class PosSales extends Component
             ->where('sale_type', 'pos')
             ->find($saleId);
 
+        if ($this->selectedSale) {
+            $this->selectedSale->subtotal = \App\Helpers\DataMaskHelper::scaleAmount($this->selectedSale->subtotal);
+            $this->selectedSale->discount_amount = \App\Helpers\DataMaskHelper::scaleAmount($this->selectedSale->discount_amount);
+            $this->selectedSale->total_amount = \App\Helpers\DataMaskHelper::scaleAmount($this->selectedSale->total_amount);
+            $this->selectedSale->due_amount = \App\Helpers\DataMaskHelper::scaleAmount($this->selectedSale->due_amount);
+            foreach ($this->selectedSale->items as $item) {
+                $item->unit_price = \App\Helpers\DataMaskHelper::scaleAmount($item->unit_price);
+                $item->total = \App\Helpers\DataMaskHelper::scaleAmount($item->total);
+            }
+        }
+
         $this->showViewModal = true;
         $this->dispatch('showModal', 'viewModal');
     }
@@ -437,13 +448,19 @@ class PosSales extends Component
             })
             ->orderBy('created_at', 'desc');
 
-        if ($this->perPage === 'all') {
-            $totalRows = (clone $query)->count();
-            return $query->paginate($totalRows > 0 ? $totalRows : 1);
-        }
+        $result = \App\Helpers\DataMaskHelper::paginateQuery($query, $this->perPage);
 
-        return $query->paginate((int) $this->perPage);
+        $result->getCollection()->transform(function ($sale) {
+            $sale->subtotal = \App\Helpers\DataMaskHelper::scaleAmount($sale->subtotal);
+            $sale->discount_amount = \App\Helpers\DataMaskHelper::scaleAmount($sale->discount_amount);
+            $sale->total_amount = \App\Helpers\DataMaskHelper::scaleAmount($sale->total_amount);
+            $sale->due_amount = \App\Helpers\DataMaskHelper::scaleAmount($sale->due_amount);
+            return $sale;
+        });
+
+        return $result;
     }
+
     public function updatedPerPage()
     {
         $this->resetPage();
@@ -451,27 +468,44 @@ class PosSales extends Component
 
     public function getSalesStatsProperty()
     {
-        $posSales   = Sale::where('sale_type', 'pos');
+        $posSales = Sale::where('sale_type', 'pos')
+            ->when($this->fromDateFilter, function ($q) {
+                $q->whereDate('created_at', '>=', $this->fromDateFilter);
+            })
+            ->when($this->toDateFilter, function ($q) {
+                $q->whereDate('created_at', '<=', $this->toDateFilter);
+            });
+
         $todaySales = Sale::where('sale_type', 'pos')->whereDate('created_at', today());
 
-        // Net revenue = gross POS sales minus all returned amounts
-        $totalReturnAmount = DB::table('returns_products')
+        $returnsQuery = DB::table('returns_products')
             ->join('sales', 'returns_products.sale_id', '=', 'sales.id')
             ->where('sales.sale_type', 'pos')
-            ->sum('returns_products.total_amount');
+            ->when($this->fromDateFilter, function ($q) {
+                $q->whereDate('returns_products.created_at', '>=', $this->fromDateFilter);
+            })
+            ->when($this->toDateFilter, function ($q) {
+                $q->whereDate('returns_products.created_at', '<=', $this->toDateFilter);
+            });
+        $rawReturnAmount = $returnsQuery->sum('returns_products.total_amount');
+        $totalReturnAmount = \App\Helpers\DataMaskHelper::scaleAmount($rawReturnAmount);
 
-        $grossRevenue = (clone $posSales)->sum('total_amount');
+        $grossRevenue = \App\Helpers\DataMaskHelper::scaleAmount((clone $posSales)->sum('total_amount'));
         $netRevenue   = $grossRevenue - $totalReturnAmount;
 
+        $pendingSales = (clone $posSales)->whereIn('payment_status', ['pending', 'partial']);
+        $partialSales = (clone $posSales)->where('payment_status', 'partial');
+        $paidSales    = (clone $posSales)->where('payment_status', 'paid');
+
         return [
-            'total_sales'      => (clone $posSales)->count(),
+            'total_sales'      => \App\Helpers\DataMaskHelper::scaleCount((clone $posSales)->count()),
             'total_amount'     => $netRevenue,
             'total_returns'    => $totalReturnAmount,
-            'pending_payments' => Sale::where('sale_type', 'pos')->whereIn('payment_status', ['pending', 'partial'])->sum('due_amount'),
-            'partial_payments' => Sale::where('sale_type', 'pos')->where('payment_status', 'partial')->sum('due_amount'),
-            'paid_amount'      => Sale::where('sale_type', 'pos')->where('payment_status', 'paid')->sum('total_amount'),
-            'today_sales'      => $todaySales->count(),
-            'today_amount'     => $todaySales->sum('total_amount'),
+            'pending_payments' => \App\Helpers\DataMaskHelper::scaleAmount($pendingSales->sum('due_amount')),
+            'partial_payments' => \App\Helpers\DataMaskHelper::scaleAmount($partialSales->sum('due_amount')),
+            'paid_amount'      => \App\Helpers\DataMaskHelper::scaleAmount($paidSales->sum('total_amount')),
+            'today_sales'      => \App\Helpers\DataMaskHelper::scaleCount($todaySales->count()),
+            'today_amount'     => \App\Helpers\DataMaskHelper::scaleAmount($todaySales->sum('total_amount')),
         ];
     }
 

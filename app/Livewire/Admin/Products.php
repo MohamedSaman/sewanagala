@@ -309,12 +309,26 @@ class Products extends Component
                 ->sum(DB::raw('product_stocks.available_stock * product_prices.selling_price'));
         }
 
-        if ($this->perPage === 'all') {
-            $totalRows = (clone $query)->count();
-            $products = $query->paginate($totalRows > 0 ? $totalRows : 1);
-        } else {
-            $products = $query->paginate((int) $this->perPage);
-        }
+        $products = $query->paginate($this->perPage);
+
+        $products->getCollection()->transform(function ($product) {
+            $product->supplier_price = \App\Helpers\DataMaskHelper::scaleAmount($product->supplier_price);
+            $product->selling_price = \App\Helpers\DataMaskHelper::scaleAmount($product->selling_price);
+            $product->discount_price = \App\Helpers\DataMaskHelper::scaleAmount($product->discount_price);
+            $product->total_available_stock = \App\Helpers\DataMaskHelper::scaleStock($product->total_available_stock);
+            $product->total_damage_stock = \App\Helpers\DataMaskHelper::scaleStock($product->total_damage_stock);
+            if (isset($product->filtered_site_stock)) {
+                $product->filtered_site_stock = \App\Helpers\DataMaskHelper::scaleStock($product->filtered_site_stock);
+            }
+            if ($product->stocks) {
+                foreach ($product->stocks as $stock) {
+                    $stock->available_stock = \App\Helpers\DataMaskHelper::scaleStock($stock->available_stock);
+                    $stock->damage_stock = \App\Helpers\DataMaskHelper::scaleStock($stock->damage_stock);
+                    $stock->total_stock = \App\Helpers\DataMaskHelper::scaleStock($stock->total_stock);
+                }
+            }
+            return $product;
+        });
 
         return view('livewire.admin.Productes', [
             'products' => $products,
@@ -323,8 +337,8 @@ class Products extends Component
             'suppliers' => $suppliers,
             'sites' => $sites,
             'existingProducts' => ProductDetail::select('id', 'name', 'code')->orderBy('name')->get(),
-            'totalProductCodes' => $totalProductCodes,
-            'totalStockValue' => $totalStockValue,
+            'totalProductCodes' => \App\Helpers\DataMaskHelper::scaleCount($totalProductCodes),
+            'totalStockValue' => \App\Helpers\DataMaskHelper::scaleAmount($totalStockValue),
         ])->layout($this->layout);
     }
     public function updatedPerPage()

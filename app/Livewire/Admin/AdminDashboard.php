@@ -68,12 +68,12 @@ class AdminDashboard extends Component
         )->first();
 
         // Add total expenses
-        $this->totalExpenses = DB::table('expenses')->sum('amount');
+        $this->totalExpenses = \App\Helpers\DataMaskHelper::scaleAmount(DB::table('expenses')->sum('amount'));
         // Totals
-        $this->todayTotal = Expense::whereDate('date', Carbon::today())->sum('amount');
-        $this->monthTotal = Expense::whereMonth('date', Carbon::now()->month)
+        $this->todayTotal = \App\Helpers\DataMaskHelper::scaleAmount(Expense::whereDate('date', Carbon::today())->sum('amount'));
+        $this->monthTotal = \App\Helpers\DataMaskHelper::scaleAmount(Expense::whereMonth('date', Carbon::now()->month)
             ->whereYear('date', Carbon::now()->year)
-            ->sum('amount');
+            ->sum('amount'));
         
         // Calculate monthly progress percentage
         $this->monthlyProgressPercentage = $this->monthlyBudget > 0 
@@ -88,8 +88,10 @@ class AdminDashboard extends Component
             : 0;
 
         // Calculate total revenue (total_amount - due_amount)
-        $this->totalSales = $salesStats->total_sales ?? 0;
-        $this->totalDueAmount = $salesStats->total_due ?? 0;
+        $rawSales = $salesStats->total_sales ?? 0;
+        $rawDue   = $salesStats->total_due ?? 0;
+        $this->totalSales = \App\Helpers\DataMaskHelper::scaleAmount($rawSales);
+        $this->totalDueAmount = \App\Helpers\DataMaskHelper::scaleAmount($rawDue);
         $this->totalRevenue = $this->totalSales - $this->totalDueAmount;
 
         // Calculate percentages
@@ -107,7 +109,7 @@ class AdminDashboard extends Component
             DB::raw('SUM(total_amount - due_amount) as revenue')
         )->first();
 
-        $this->previousMonthRevenue = $previousMonthSales->revenue ?? 0;
+        $this->previousMonthRevenue = \App\Helpers\DataMaskHelper::scaleAmount($previousMonthSales->revenue ?? 0);
 
         // Calculate month-over-month change percentage
         if ($this->previousMonthRevenue > 0) {
@@ -121,8 +123,8 @@ class AdminDashboard extends Component
                 DB::raw('SUM(total_amount) as amount')
             )->first();
 
-        $this->fullPaidCount = $fullPaidData->count ?? 0;
-        $this->fullPaidAmount = $fullPaidData->amount ?? 0;
+        $this->fullPaidCount = \App\Helpers\DataMaskHelper::scaleCount($fullPaidData->count ?? 0);
+        $this->fullPaidAmount = \App\Helpers\DataMaskHelper::scaleAmount($fullPaidData->amount ?? 0);
 
         // Get partially paid invoices data
         $partialPaidData = Sale::where('payment_status', 'partial')
@@ -131,8 +133,8 @@ class AdminDashboard extends Component
                 DB::raw('SUM(due_amount) as amount')
             )->first();
 
-        $this->partialPaidCount = $partialPaidData->count ?? 0;
-        $this->partialPaidAmount = $partialPaidData->amount ?? 0;
+        $this->partialPaidCount = \App\Helpers\DataMaskHelper::scaleCount($partialPaidData->count ?? 0);
+        $this->partialPaidAmount = \App\Helpers\DataMaskHelper::scaleAmount($partialPaidData->amount ?? 0);
 
         // Get inventory statistics
         $this->loadStockStats();
@@ -144,7 +146,7 @@ class AdminDashboard extends Component
             ->select(DB::raw('SUM(product_stocks.damage_stock * product_prices.supplier_price) as damaged_value'))
             ->first();
 
-        $this->damagedValue = $damagedValue->damaged_value ?? 0;
+        $this->damagedValue = \App\Helpers\DataMaskHelper::scaleAmount($damagedValue->damaged_value ?? 0);
 
         // Calculate total inventory value
         $totalInventoryValue = DB::table('product_details')
@@ -159,8 +161,8 @@ class AdminDashboard extends Component
             ->select(DB::raw('SUM(product_stocks.available_stock * product_prices.supplier_price) as total_value'))
             ->first();
 
-        $this->totalInventoryValue    = $totalInventoryValue->total_value ?? 0;
-        $this->totalAvailableInventory = $totalAvailableInventory->total_value ?? 0;
+        $this->totalInventoryValue    = \App\Helpers\DataMaskHelper::scaleAmount($totalInventoryValue->total_value ?? 0);
+        $this->totalAvailableInventory = \App\Helpers\DataMaskHelper::scaleAmount($totalAvailableInventory->total_value ?? 0);
 
         $this->soldValue = $this->totalSales;
 
@@ -179,7 +181,7 @@ class AdminDashboard extends Component
             ->select(DB::raw('SUM(total_value) as total_value'))
             ->first();
 
-        $this->totalStaffSalesValue = $staffSalesTotal->total_value ?? 0;
+        $this->totalStaffSalesValue = \App\Helpers\DataMaskHelper::scaleAmount($staffSalesTotal->total_value ?? 0);
 
         // Fetch recent sales
         $this->loadRecentSales();
@@ -198,7 +200,8 @@ class AdminDashboard extends Component
     public function loadStockStats(): void
     {
         // Get sold stock from sale_items table as requested
-        $this->soldStock = (float) DB::table('sale_items')->sum('quantity');
+        $rawSoldStock = (float) DB::table('sale_items')->sum('quantity');
+        $this->soldStock = (float) \App\Helpers\DataMaskHelper::scaleStock($rawSoldStock);
 
         // Get available and damaged stock from product_stocks table
         $stockStats = DB::table('product_stocks')
@@ -207,8 +210,8 @@ class AdminDashboard extends Component
                 DB::raw('SUM(available_stock) as available_stock')
             )->first();
 
-        $this->damagedStock   = (float) ($stockStats->damaged_stock  ?? 0);
-        $this->availableStock = (float) ($stockStats->available_stock ?? 0);
+        $this->damagedStock   = (float) \App\Helpers\DataMaskHelper::scaleStock($stockStats->damaged_stock  ?? 0);
+        $this->availableStock = (float) \App\Helpers\DataMaskHelper::scaleStock($stockStats->available_stock ?? 0);
         
         // Calculate total stock as the sum of all states for consistency
         $this->totalStock = $this->soldStock + $this->availableStock + $this->damagedStock;
@@ -236,11 +239,16 @@ class AdminDashboard extends Component
                 'sales.created_at',
                 'customers.name',
                 'customers.email',
-                'sales.due_amount',
+                'sales.due_amount'
             )
             ->orderBy('sales.created_at', 'desc')
             ->limit(5)
-            ->get();
+            ->get()
+            ->map(function ($sale) {
+                $sale->total_amount = \App\Helpers\DataMaskHelper::scaleAmount($sale->total_amount);
+                $sale->due_amount   = \App\Helpers\DataMaskHelper::scaleAmount($sale->due_amount);
+                return $sale;
+            });
     }
 
     public function loadProductInventory()
@@ -269,7 +277,13 @@ class AdminDashboard extends Component
             )
             ->orderBy('product_stocks.available_stock', 'asc')
             ->limit(5)
-            ->get();
+            ->get()
+            ->map(function ($item) {
+                $item->available_stock = \App\Helpers\DataMaskHelper::scaleStock($item->available_stock);
+                $item->damage_stock    = \App\Helpers\DataMaskHelper::scaleStock($item->damage_stock);
+                $item->total_stock     = \App\Helpers\DataMaskHelper::scaleStock($item->total_stock);
+                return $item;
+            });
     }
 
     public function loadCategorySales()
@@ -286,6 +300,10 @@ class AdminDashboard extends Component
                 ->groupBy('category_lists.id', 'category_lists.category_name')
                 ->orderBy('total_sales', 'desc')
                 ->get()
+                ->map(function ($item) {
+                    $item->total_sales = \App\Helpers\DataMaskHelper::scaleAmount($item->total_sales);
+                    return $item;
+                })
                 ->toArray();
 
             // If no categories found, use fallback
@@ -307,11 +325,15 @@ class AdminDashboard extends Component
             ->join('brand_lists', 'product_details.brand_id', '=', 'brand_lists.id')
             ->select(
                 'brand_lists.brand_name as category', 
-                DB::raw('SUM(sale_items.total) as total_sales'
-            ))
+                DB::raw('SUM(sale_items.total) as total_sales')
+            )
             ->groupBy('brand_lists.id', 'brand_lists.brand_name')
             ->orderBy('total_sales', 'desc')
             ->get()
+            ->map(function ($item) {
+                $item->total_sales = \App\Helpers\DataMaskHelper::scaleAmount($item->total_sales);
+                return $item;
+            })
             ->toArray();
     }
 
@@ -341,9 +363,17 @@ class AdminDashboard extends Component
                     )
                     ->first();
 
-                $staff->total_sales = $salesInfo->total_sales ?? 0;
-                $staff->total_due = $salesInfo->total_due ?? 0;
+                $rawTotalSales = $salesInfo->total_sales ?? 0;
+                $rawTotalDue   = $salesInfo->total_due ?? 0;
+
+                $staff->total_sales = \App\Helpers\DataMaskHelper::scaleAmount($rawTotalSales);
+                $staff->total_due   = \App\Helpers\DataMaskHelper::scaleAmount($rawTotalDue);
                 $staff->collected_amount = $staff->total_sales - $staff->total_due;
+
+                $staff->assigned_value    = \App\Helpers\DataMaskHelper::scaleAmount($staff->assigned_value);
+                $staff->sold_value        = \App\Helpers\DataMaskHelper::scaleAmount($staff->sold_value);
+                $staff->assigned_quantity = \App\Helpers\DataMaskHelper::scaleStock($staff->assigned_quantity);
+                $staff->sold_quantity     = \App\Helpers\DataMaskHelper::scaleStock($staff->sold_quantity);
 
                 // Calculate percentages for progress bars
                 $staff->sales_percentage = $staff->assigned_value > 0 ?

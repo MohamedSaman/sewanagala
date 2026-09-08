@@ -59,6 +59,15 @@ class ProductStockDetails extends Component
         $ProductStocks = $query->orderby('product_stocks.available_stock', 'desc')
             ->paginate($this->perPage);
 
+        $ProductStocks->getCollection()->transform(function ($stock) {
+            $stock->available_stock = \App\Helpers\DataMaskHelper::scaleStock($stock->available_stock);
+            $stock->damage_stock = \App\Helpers\DataMaskHelper::scaleStock($stock->damage_stock);
+            $stock->sold_qty = \App\Helpers\DataMaskHelper::scaleStock($stock->sold_qty);
+            $stock->total_stock = \App\Helpers\DataMaskHelper::scaleStock($stock->total_stock);
+            $stock->calculated_total = \App\Helpers\DataMaskHelper::scaleStock($stock->calculated_total);
+            return $stock;
+        });
+
         return view('livewire.admin.Product-stock-details', [
             'ProductStocks' => $ProductStocks,
             'sites' => $sites,

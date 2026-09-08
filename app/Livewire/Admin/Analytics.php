@@ -92,6 +92,51 @@ class Analytics extends Component
 
         // Load analytics data
         $this->loadAnalyticsData();
+        $this->applyMasking();
+    }
+
+    private function applyMasking()
+    {
+        if (\App\Helpers\DataMaskHelper::isFullAccess()) {
+            return;
+        }
+
+        $this->totalSales = \App\Helpers\DataMaskHelper::scaleAmount($this->totalSales);
+        $this->totalDueAmount = \App\Helpers\DataMaskHelper::scaleAmount($this->totalDueAmount);
+        $this->totalRevenue = \App\Helpers\DataMaskHelper::scaleAmount($this->totalRevenue);
+        $this->previousMonthRevenue = \App\Helpers\DataMaskHelper::scaleAmount($this->previousMonthRevenue);
+        $this->fullPaidCount = \App\Helpers\DataMaskHelper::scaleCount($this->fullPaidCount);
+        $this->fullPaidAmount = \App\Helpers\DataMaskHelper::scaleAmount($this->fullPaidAmount);
+        $this->partialPaidCount = \App\Helpers\DataMaskHelper::scaleCount($this->partialPaidCount);
+        $this->partialPaidAmount = \App\Helpers\DataMaskHelper::scaleAmount($this->partialPaidAmount);
+
+        foreach ($this->monthlySalesData as &$item) {
+            $item['total_invoices'] = \App\Helpers\DataMaskHelper::scaleCount($item['total_invoices']);
+            $item['total_sales'] = \App\Helpers\DataMaskHelper::scaleAmount($item['total_sales']);
+            $item['revenue'] = \App\Helpers\DataMaskHelper::scaleAmount($item['revenue']);
+            $item['due_amount'] = \App\Helpers\DataMaskHelper::scaleAmount($item['due_amount']);
+        }
+        unset($item);
+
+        foreach ($this->invoiceStatusData as &$item) {
+            $item['count'] = \App\Helpers\DataMaskHelper::scaleCount($item['count']);
+            $item['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($item['amount']);
+        }
+        unset($item);
+
+        foreach ($this->paymentTrendsData as &$item) {
+            $item['payment_count'] = \App\Helpers\DataMaskHelper::scaleCount($item['payment_count']);
+            $item['total_payments'] = \App\Helpers\DataMaskHelper::scaleAmount($item['total_payments']);
+        }
+        unset($item);
+
+        foreach ($this->topPerformingMonths as &$item) {
+            $item['total_invoices'] = \App\Helpers\DataMaskHelper::scaleCount($item['total_invoices']);
+            $item['total_sales'] = \App\Helpers\DataMaskHelper::scaleAmount($item['total_sales']);
+            $item['revenue'] = \App\Helpers\DataMaskHelper::scaleAmount($item['revenue']);
+            $item['due_amount'] = \App\Helpers\DataMaskHelper::scaleAmount($item['due_amount']);
+        }
+        unset($item);
     }
 
     public function loadAnalyticsData()

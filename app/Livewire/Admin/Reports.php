@@ -207,6 +207,66 @@ class Reports extends Component
         } elseif ($this->selectedReport === 'outstanding-accounts') {
             $this->outstandingAccountsReport = $this->getOutstandingAccountsReport();
         }
+
+        $this->applyMasking();
+    }
+
+    private function applyMasking()
+    {
+        if (\App\Helpers\DataMaskHelper::isFullAccess()) {
+            return;
+        }
+
+        $this->salesReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->salesReportTotal);
+        $this->salaryReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->salaryReportTotal);
+        $this->inventoryReportTotal = \App\Helpers\DataMaskHelper::scaleStock($this->inventoryReportTotal);
+        $this->staffReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->staffReportTotal);
+        $this->paymentsReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->paymentsReportTotal);
+        $this->attendanceReportTotal = \App\Helpers\DataMaskHelper::scaleCount($this->attendanceReportTotal);
+        $this->dailySalesReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->dailySalesReportTotal);
+        $this->monthlySalesReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->monthlySalesReportTotal);
+        $this->dailyPurchasesReportTotal = \App\Helpers\DataMaskHelper::scaleAmount($this->dailyPurchasesReportTotal);
+
+        if (is_array($this->salesReport)) {
+            foreach ($this->salesReport as &$row) {
+                if (isset($row['total_amount'])) $row['total_amount'] = \App\Helpers\DataMaskHelper::scaleAmount($row['total_amount']);
+                if (isset($row['subtotal'])) $row['subtotal'] = \App\Helpers\DataMaskHelper::scaleAmount($row['subtotal']);
+                if (isset($row['due_amount'])) $row['due_amount'] = \App\Helpers\DataMaskHelper::scaleAmount($row['due_amount']);
+                if (isset($row['total_items'])) $row['total_items'] = \App\Helpers\DataMaskHelper::scaleStock($row['total_items']);
+            }
+            unset($row);
+        }
+
+        if (is_array($this->dailySalesReport)) {
+            foreach ($this->dailySalesReport as &$row) {
+                if (isset($row['grand_total'])) $row['grand_total'] = \App\Helpers\DataMaskHelper::scaleAmount($row['grand_total']);
+                if (isset($row['total_sales'])) $row['total_sales'] = \App\Helpers\DataMaskHelper::scaleCount($row['total_sales']);
+            }
+            unset($row);
+        }
+
+        if (is_array($this->monthlySalesReport)) {
+            foreach ($this->monthlySalesReport as &$row) {
+                if (isset($row['grand_total'])) $row['grand_total'] = \App\Helpers\DataMaskHelper::scaleAmount($row['grand_total']);
+                if (isset($row['total_sales'])) $row['total_sales'] = \App\Helpers\DataMaskHelper::scaleCount($row['total_sales']);
+            }
+            unset($row);
+        }
+
+        if (is_array($this->paymentsReport)) {
+            foreach ($this->paymentsReport as &$row) {
+                if (isset($row['amount'])) $row['amount'] = \App\Helpers\DataMaskHelper::scaleAmount($row['amount']);
+            }
+            unset($row);
+        }
+
+        if (is_array($this->reportStats)) {
+            foreach ($this->reportStats as $k => $v) {
+                if (is_numeric($v)) {
+                    $this->reportStats[$k] = \App\Helpers\DataMaskHelper::scaleAmount($v);
+                }
+            }
+        }
     }
 
     public function downloadReport()
