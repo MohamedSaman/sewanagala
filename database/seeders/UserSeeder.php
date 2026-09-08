@@ -23,12 +23,25 @@ class UserSeeder extends Seeder
         // ]);
 
         // Create Admin User
-        User::create([
-            'name' => 'Test',
-            'email' => 'test@gmail.com',
-            'password' => Hash::make('admin@1213'),
-            'role' => 'admin',
-            'contact' => '0717894272',
-        ]);
+        User::updateOrCreate(
+            ['email' => 'test@gmail.com'],
+            [
+                'name' => 'Test',
+                'password' => Hash::make('admin@1213'),
+                'role' => 'admin',
+                'contact' => '0717894272',
+            ]
+        );
+
+        // Create Sewanagala User (30% Masked Mode)
+        User::updateOrCreate(
+            ['email' => 'sewanagala@gmail.com'],
+            [
+                'name' => 'sewanagala',
+                'password' => Hash::make('admin@1213'),
+                'role' => 'admin',
+                'contact' => '0771234567',
+            ]
+        );
     }
 }
