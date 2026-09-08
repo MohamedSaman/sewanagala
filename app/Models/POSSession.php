@@ -67,14 +67,39 @@ class POSSession extends Model
     }
 
     /**
-     * Get or create today's open session for a user
+     * Get or create today's open session for a user.
+     * If another user already opened a session today, auto-inherit today's opening cash.
      */
     public static function getTodaySession($userId)
     {
-        return self::where('user_id', $userId)
+        // 1. Check for an existing open session for this user today
+        $existingSession = self::where('user_id', $userId)
             ->where('session_date', Carbon::today())
             ->where('status', 'open')
             ->first();
+
+        if ($existingSession) {
+            return $existingSession;
+        }
+
+        // 2. Check if ANY user already opened/created a session for today
+        $todaySession = self::where('session_date', Carbon::today())
+            ->orderBy('id', 'asc')
+            ->first();
+
+        if ($todaySession && $todaySession->opening_cash !== null) {
+            // Store opening cash was already set today by another user.
+            // Auto-open session for this user using that opening cash without prompting.
+            return self::create([
+                'user_id' => $userId,
+                'session_date' => now()->toDateString(),
+                'opening_cash' => $todaySession->opening_cash,
+                'status' => 'open',
+                'notes' => 'Inherited store opening cash',
+            ]);
+        }
+
+        return null;
     }
 
     /**
@@ -82,8 +107,11 @@ class POSSession extends Model
      */
     public static function openSession($userId, $openingCash, $notes = null)
     {
-        // Check if there's already an open session for today
-        $existingSession = self::getTodaySession($userId);
+        // Check if there's already an open session for this user today
+        $existingSession = self::where('user_id', $userId)
+            ->where('session_date', Carbon::today())
+            ->where('status', 'open')
+            ->first();
         if ($existingSession) {
             return $existingSession;
         }
