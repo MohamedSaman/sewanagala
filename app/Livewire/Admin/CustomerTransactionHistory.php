@@ -116,6 +116,12 @@ class CustomerTransactionHistory extends Component
                     return;
                 }
             }
+            if ($row['method'] === 'overpaid_amount') {
+                if ($row['amount'] > (float)$this->customer->overpaid_amount) {
+                    $this->js("Swal.fire('Error!', 'Amount exceeds available overpaid balance (Rs. " . number_format((float)$this->customer->overpaid_amount, 2) . ").', 'error')");
+                    return;
+                }
+            }
             if ($row['method'] === 'bank_transfer') {
                 if (empty($row['bank_name'])) {
                     $this->js("Swal.fire('Error!', 'Bank name is required.', 'error')");
@@ -178,6 +184,11 @@ class CustomerTransactionHistory extends Component
                         'status' => 'pending',
                         'customer_id' => $this->customer->id,
                     ]);
+                }
+
+                if ($row['method'] === 'overpaid_amount') {
+                    $this->customer->overpaid_amount = max(0, (float)$this->customer->overpaid_amount - (float)$row['amount']);
+                    $this->customer->save();
                 }
 
                 if ($row['method'] === 'cash') {
@@ -338,14 +349,20 @@ class CustomerTransactionHistory extends Component
                     $transactionDate = $payment->created_at;
                 }
 
+                $isOverpaidMethod = $payment->payment_method === 'overpaid_amount';
+                $creditVal = $isOverpaidMethod ? 0 : $payment->amount;
+                $detailsText = $isOverpaidMethod
+                    ? 'Applied Overpaid Credit (Rs.' . number_format($payment->amount, 2) . ')'
+                    : 'Payment via ' . ucfirst(str_replace('_', ' ', $payment->payment_method));
+
                 return [
                     'type' => 'Payment',
                     'id' => $payment->id,
                     'reference' => $payment->payment_reference ?? 'PAY-' . str_pad($payment->id, 5, '0', STR_PAD_LEFT),
                     'date' => $transactionDate,
                     'debit' => 0,
-                    'credit' => $payment->amount,
-                    'details' => 'Payment via ' . ucfirst(str_replace('_', ' ', $payment->payment_method)),
+                    'credit' => $creditVal,
+                    'details' => $detailsText,
                     'cheque_count' => $payment->payment_method === 'cheque' ? $payment->cheques_count : null,
                     'due_days' => null,
                 ];
@@ -365,6 +382,24 @@ class CustomerTransactionHistory extends Component
                     'debit' => 0,
                     'credit' => $return->total_amount,
                     'details' => 'Product Return',
+                    'cheque_count' => null,
+                    'due_days' => null,
+                ];
+            });
+
+        // 3b. Get Manual Returns (Decreases Balance / Credit)
+        $manualReturns = \App\Models\ManualSaleReturn::where('customer_id', $this->customer->id)
+            ->with('product')
+            ->get()
+            ->map(function ($mReturn) {
+                return [
+                    'type' => 'Manual Return',
+                    'id' => $mReturn->id,
+                    'reference' => 'MRET-' . str_pad($mReturn->id, 5, '0', STR_PAD_LEFT),
+                    'date' => $mReturn->invoice_date ?? $mReturn->created_at,
+                    'debit' => 0,
+                    'credit' => $mReturn->total_amount,
+                    'details' => 'Manual Return (Inv: ' . ($mReturn->invoice_number ?? 'N/A') . ')' . ($mReturn->product ? ' - ' . $mReturn->product->name : ''),
                     'cheque_count' => null,
                     'due_days' => null,
                 ];
@@ -394,13 +429,13 @@ class CustomerTransactionHistory extends Component
             ->concat($sales)
             ->concat($payments)
             ->concat($returns)
+            ->concat($manualReturns)
             ->concat($returnedCheques)
             ->sortBy(function ($transaction) {
                 // Ensure strictly stable sorting if timestamps are exactly identical.
-                // Sales (type A) come first, then returns (type B), then returned cheques (type C), then payments (type D).
-                $typeOrder = ['Opening Balance' => 0, 'Sale' => 1, 'Return' => 2, 'Returned Cheque' => 3, 'Payment' => 4];
+                $typeOrder = ['Opening Balance' => 0, 'Sale' => 1, 'Return' => 2, 'Manual Return' => 2, 'Returned Cheque' => 3, 'Payment' => 4];
                 $timestamp = \Carbon\Carbon::parse($transaction['date'])->timestamp;
-                return $timestamp . '_' . $typeOrder[$transaction['type']] . '_' . $transaction['id'];
+                return $timestamp . '_' . ($typeOrder[$transaction['type']] ?? 5) . '_' . $transaction['id'];
             })
             ->values();
 

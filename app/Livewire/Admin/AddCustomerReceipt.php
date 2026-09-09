@@ -52,7 +52,7 @@ class AddCustomerReceipt extends Component
     protected function rules()
     {
         return [
-            'paymentRows.*.method' => 'required|in:cash,cheque,bank_transfer',
+            'paymentRows.*.method' => 'required|in:cash,cheque,bank_transfer,overpaid_amount',
             'paymentRows.*.amount' => 'required|numeric|min:0.01',
             'paymentRows.*.cheque_number' => 'required_if:paymentRows.*.method,cheque',
             'paymentRows.*.bank_name' => 'required_if:paymentRows.*.method,cheque,bank_transfer',
@@ -100,9 +100,51 @@ class AddCustomerReceipt extends Component
         $this->calculateRemainingAmount();
         $this->autoAllocatePayment();
 
-        // If only one payment row exists, update its amount to match the total
+        $this->syncPaymentRowsWithTotal();
+    }
+
+    private function syncPaymentRowsWithTotal()
+    {
+        $total = (float)$this->totalPaymentAmount;
+        $maxOverpaid = (float)($this->selectedCustomer ? $this->selectedCustomer->overpaid_amount : 0);
+
+        if (empty($this->paymentRows)) {
+            $this->addPaymentRow();
+            return;
+        }
+
+        // Check if any row uses overpaid_amount
+        foreach ($this->paymentRows as $index => $row) {
+            if ($row['method'] === 'overpaid_amount') {
+                $cappedVal = min((float)$row['amount'], $maxOverpaid);
+                if ($cappedVal <= 0) {
+                    $cappedVal = min($total, $maxOverpaid);
+                }
+                $this->paymentRows[$index]['amount'] = $cappedVal;
+            }
+        }
+
         if (count($this->paymentRows) === 1) {
-            $this->paymentRows[0]['amount'] = $this->totalPaymentAmount;
+            if ($this->paymentRows[0]['method'] === 'overpaid_amount') {
+                $overpaidShare = min($total, $maxOverpaid);
+                $this->paymentRows[0]['amount'] = $overpaidShare;
+                $remaining = max(0, $total - $overpaidShare);
+
+                if ($remaining > 0) {
+                    $this->paymentRows[] = [
+                        'method' => 'cash',
+                        'amount' => $remaining,
+                        'cheque_number' => '',
+                        'bank_name' => '',
+                        'cheque_date' => now()->format('Y-m-d'),
+                        'cheque_photo' => null,
+                        'transfer_reference' => '',
+                        'transfer_date' => now()->format('Y-m-d'),
+                    ];
+                }
+            } else {
+                $this->paymentRows[0]['amount'] = $total;
+            }
         }
     }
 
@@ -133,6 +175,40 @@ class AddCustomerReceipt extends Component
 
     public function updatedPaymentRows($value, $nestedKey)
     {
+        $maxOverpaid = (float)($this->selectedCustomer ? $this->selectedCustomer->overpaid_amount : 0);
+
+        foreach ($this->paymentRows as $index => $row) {
+            if ($row['method'] === 'overpaid_amount') {
+                if ((float)($row['amount'] ?? 0) > $maxOverpaid) {
+                    $this->paymentRows[$index]['amount'] = $maxOverpaid;
+                    $this->dispatch('show-toast', [
+                        'type' => 'warning',
+                        'message' => "Overpaid Amount capped at available balance (Rs. " . number_format($maxOverpaid, 2) . ")."
+                    ]);
+                }
+
+                if (str_ends_with($nestedKey, '.method')) {
+                    $total = (float)$this->totalPaymentAmount;
+                    $overpaidVal = min($total, $maxOverpaid);
+                    $this->paymentRows[$index]['amount'] = $overpaidVal;
+                    $rem = max(0, $total - $overpaidVal);
+
+                    if ($rem > 0 && count($this->paymentRows) === 1) {
+                        $this->paymentRows[] = [
+                            'method' => 'cash',
+                            'amount' => $rem,
+                            'cheque_number' => '',
+                            'bank_name' => '',
+                            'cheque_date' => now()->format('Y-m-d'),
+                            'cheque_photo' => null,
+                            'transfer_reference' => '',
+                            'transfer_date' => now()->format('Y-m-d'),
+                        ];
+                    }
+                }
+            }
+        }
+
         if (str_ends_with($nestedKey, '.cheque_date') && !empty($value)) {
             if (Holiday::isHoliday($value)) {
                 $reason = Holiday::getHolidayReason($value);
@@ -163,6 +239,49 @@ class AddCustomerReceipt extends Component
         $this->totalPaymentAmount = '';
         $this->remainingAmount = 0;
         $this->resetPaymentData();
+    }
+
+    public function useOverpaidAmount()
+    {
+        if (!$this->selectedCustomer || (float)$this->selectedCustomer->overpaid_amount <= 0) return;
+
+        $overpaidAvail = (float)$this->selectedCustomer->overpaid_amount;
+        $due = (float)$this->totalDueAmount;
+        if ($due <= 0) return;
+
+        $this->totalPaymentAmount = $due;
+        $overpaidShare = min($overpaidAvail, $due);
+        $remainingShare = max(0, $due - $overpaidShare);
+
+        $this->paymentRows = [
+            [
+                'method' => 'overpaid_amount',
+                'amount' => $overpaidShare,
+                'cheque_number' => '',
+                'bank_name' => '',
+                'cheque_date' => now()->format('Y-m-d'),
+                'cheque_photo' => null,
+                'transfer_reference' => '',
+                'transfer_date' => now()->format('Y-m-d'),
+            ]
+        ];
+
+        if ($remainingShare > 0) {
+            $this->paymentRows[] = [
+                'method' => 'cash',
+                'amount' => $remainingShare,
+                'cheque_number' => '',
+                'bank_name' => '',
+                'cheque_date' => now()->format('Y-m-d'),
+                'cheque_photo' => null,
+                'transfer_reference' => '',
+                'transfer_date' => now()->format('Y-m-d'),
+            ];
+        }
+
+        $this->calculateRemainingAmount();
+        $this->autoAllocatePayment();
+        $this->openPaymentModal();
     }
 
     public function resetPaymentData()
@@ -389,13 +508,11 @@ class AddCustomerReceipt extends Component
             return;
         }
 
+        // Sync payment rows with total
+        $this->syncPaymentRowsWithTotal();
+
         // Allocate payment
         $this->autoAllocatePayment();
-
-        // Update first payment row amount if it's the only one
-        if (count($this->paymentRows) === 1) {
-            $this->paymentRows[0]['amount'] = $this->totalPaymentAmount;
-        }
 
         // Show modal
         $this->showPaymentModal = true;
@@ -529,8 +646,17 @@ class AddCustomerReceipt extends Component
             return;
         }
 
-        // Validate against blocked holidays / poya days
+        // Validate against blocked holidays / poya days & overpaid amount limit
         foreach ($this->paymentRows as $index => $row) {
+            if ($row['method'] === 'overpaid_amount') {
+                if ((float)$row['amount'] > (float)$this->selectedCustomer->overpaid_amount) {
+                    $this->dispatch('show-toast', [
+                        'type' => 'error',
+                        'message' => "Amount specified for Overpaid Balance (Rs. " . number_format((float)$row['amount'], 2) . ") exceeds available balance (Rs. " . number_format((float)$this->selectedCustomer->overpaid_amount, 2) . ")."
+                    ]);
+                    return;
+                }
+            }
             if ($row['method'] === 'cheque' && !empty($row['cheque_date'])) {
                 if (Holiday::isHoliday($row['cheque_date'])) {
                     $reason = Holiday::getHolidayReason($row['cheque_date']);
@@ -598,6 +724,11 @@ class AddCustomerReceipt extends Component
                         'status' => 'pending',
                         'customer_id' => $this->selectedCustomer->id,
                     ]);
+                }
+
+                if ($row['method'] === 'overpaid_amount') {
+                    $this->selectedCustomer->overpaid_amount = max(0, (float)$this->selectedCustomer->overpaid_amount - (float)$row['amount']);
+                    $this->selectedCustomer->save();
                 }
 
                 if ($row['method'] === 'cash') {

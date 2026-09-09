@@ -59,9 +59,14 @@
                                     | <i class="bi bi-envelope me-1"></i>{{ $selectedCustomer->email }}
                                     @endif
                                 </p>
-                                <span class="badge bg-warning">
+                                <span class="badge bg-warning me-1">
                                     {{ count($customerSales) }} Due Invoice(s)
                                 </span>
+                                @if((float)$selectedCustomer->overpaid_amount > 0)
+                                <span class="badge bg-success">
+                                    Overpaid Balance: Rs. {{ number_format((float)$selectedCustomer->overpaid_amount, 2) }}
+                                </span>
+                                @endif
                             </div>
                             <button class="btn btn-outline-secondary btn-sm" wire:click="clearSelectedCustomer">
                                 <i class="bi bi-x"></i>
@@ -382,6 +387,13 @@
                                 wire:click="$set('totalPaymentAmount', {{ $totalDueAmount }})">
                                 Pay Full Amount (Rs.{{ number_format($totalDueAmount, 2) }})
                             </button>
+                            @if((float)$selectedCustomer->overpaid_amount > 0)
+                            <button
+                                class="btn btn-success btn-sm"
+                                wire:click="useOverpaidAmount">
+                                <i class="bi bi-wallet2 me-1"></i> Pay using Overpaid Balance (Rs. {{ number_format(min((float)$selectedCustomer->overpaid_amount, $totalDueAmount), 2) }})
+                            </button>
+                            @endif
                         </div>
                     </div>
 
@@ -659,6 +671,9 @@
                                                     <option value="cash">Cash</option>
                                                     <option value="cheque">Cheque</option>
                                                     <option value="bank_transfer">Bank Transfer</option>
+                                                    @if((float)$selectedCustomer->overpaid_amount > 0)
+                                                    <option value="overpaid_amount">Overpaid Amount (Available: Rs. {{ number_format((float)$selectedCustomer->overpaid_amount, 2) }})</option>
+                                                    @endif
                                                 </select>
                                             </td>
                                             <td>
@@ -760,6 +775,8 @@
                                                             <input type="text" wire:model.defer="paymentRows.{{ $index }}.transfer_reference" class="form-control form-control-sm border-0 shadow-sm" placeholder="Ref No">
                                                         </div>
                                                     </div>
+                                                @elseif($row['method'] === 'overpaid_amount')
+                                                    <span class="text-success small fw-semibold px-2"><i class="bi bi-wallet2 me-1"></i> Customer overpaid credit adjustment (Available: Rs. {{ number_format((float)$selectedCustomer->overpaid_amount, 2) }})</span>
                                                 @else
                                                     <span class="text-muted small px-2">Standard cash payment</span>
                                                 @endif

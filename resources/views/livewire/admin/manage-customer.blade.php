@@ -72,6 +72,7 @@
                             <th>Type</th>
                             <th>Address</th>
                             <th class="text-end">Opening Due</th>
+                            <th class="text-end">Overpaid Amount</th>
                             <th class="text-end pe-4">Actions</th>
                         </tr>
                     </thead>
@@ -97,6 +98,7 @@
                             </td>
                             <td>{{ $customer->address ?? '-' }}</td>
                             <td class="text-end">Rs. {{ number_format((float) $customer->opening_balance, 2) }}</td>
+                            <td class="text-end text-success fw-bold">Rs. {{ number_format((float) $customer->overpaid_amount, 2) }}</td>
                             <td class="text-end pe-2" wire:click.stop>
                                 <div class="dropdown">
                                     <button class="btn btn-outline-secondary dropdown-toggle"
@@ -431,6 +433,9 @@
 
                                     <div class="col-4 text-muted fw-semibold mb-2">Opening Due:</div>
                                     <div class="col-8 mb-2">Rs. {{ number_format((float) ($viewCustomerDetail['opening_balance'] ?? 0), 2) }}</div>
+
+                                    <div class="col-4 text-muted fw-semibold mb-2">Overpaid Amount:</div>
+                                    <div class="col-8 mb-2 text-success fw-bold">Rs. {{ number_format((float) ($viewCustomerDetail['overpaid_amount'] ?? 0), 2) }}</div>
                                 </div>
                             </div>
 

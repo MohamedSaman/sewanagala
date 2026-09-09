@@ -134,6 +134,7 @@ class ManageCustomer extends Component
             'created_at' => $customer->created_at,
             'updated_at' => $customer->updated_at,
             'opening_balance' => $customer->opening_balance,
+            'overpaid_amount' => $customer->overpaid_amount,
         ];
 
         $this->showViewModal = true;

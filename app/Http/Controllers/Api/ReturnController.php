@@ -127,6 +127,11 @@ class ReturnController extends ApiController
                 $stock->save();
             }
 
+            if ($sale && $sale->customer) {
+                $sale->customer->overpaid_amount = (float)$sale->customer->overpaid_amount + $totalAmount;
+                $sale->customer->save();
+            }
+
             DB::commit();
             return $this->success($return, 'Customer return recorded successfully');
 

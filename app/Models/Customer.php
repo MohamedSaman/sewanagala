@@ -19,10 +19,12 @@ class Customer extends Model
         'notes',
         'business_name',
         'opening_balance',
+        'overpaid_amount',
     ];
 
     protected $casts = [
         'opening_balance' => 'decimal:2',
+        'overpaid_amount' => 'decimal:2',
     ];
 
     public function sales()

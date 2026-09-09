@@ -444,11 +444,14 @@ class ReturnProduct extends Component
         }
 
         DB::transaction(function () use ($itemsToReturn) {
+            $totalReturnAmount = 0;
             foreach ($itemsToReturn as $item) {
                 $saleItem = \App\Models\SaleItem::where('sale_id', $this->selectedInvoice->id)
                     ->where('product_id', $item['product_id'])
                     ->first();
                 $costPrice = $saleItem ? $saleItem->cost_price : 0;
+                $itemTotal = $item['return_qty'] * $item['net_unit_price'];
+                $totalReturnAmount += $itemTotal;
 
                 ReturnsProduct::create([
                     'sale_id' => $this->selectedInvoice->id,
@@ -456,12 +459,18 @@ class ReturnProduct extends Component
                     'return_quantity' => $item['return_qty'],
                     'selling_price' => $item['net_unit_price'],
                     'cost_price' => $costPrice,
-                    'total_amount' => $item['return_qty'] * $item['net_unit_price'],
+                    'total_amount' => $itemTotal,
                     'return_condition' => $item['return_condition'] ?? 'usable',
                     'notes' => 'Customer return processed via system (' . ($item['return_condition'] ?? 'usable') . ')',
                 ]);
 
                 $this->updateProductStock($item['product_id'], $item['return_qty'], $item['return_condition'] ?? 'usable');
+            }
+
+            $customer = $this->selectedCustomer ?? ($this->selectedInvoice ? $this->selectedInvoice->customer : null);
+            if ($customer) {
+                $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalReturnAmount;
+                $customer->save();
             }
         });
 
@@ -723,12 +732,15 @@ class ReturnProduct extends Component
         $generalNotes = $this->manualNotes;
 
         DB::transaction(function () use ($custName, $custId, $invNumber, $invDate, $generalNotes) {
+            $totalManualReturnAmount = 0;
             foreach ($this->manualReturnItems as $item) {
                 $qty = (float)$item['return_qty'];
                 $unitPrice = (float)$item['unit_price'];
                 $costPrice = (float)($item['cost_price'] ?? 0);
                 $condition = $item['return_condition'] ?? 'usable';
                 $itemNotes = !empty($item['notes']) ? $item['notes'] : $generalNotes;
+                $itemTotal = $qty * $unitPrice;
+                $totalManualReturnAmount += $itemTotal;
 
                 ManualSaleReturn::create([
                     'invoice_number' => $invNumber,
@@ -739,7 +751,7 @@ class ReturnProduct extends Component
                     'return_quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'cost_price' => $costPrice,
-                    'total_amount' => $qty * $unitPrice,
+                    'total_amount' => $itemTotal,
                     'return_condition' => $condition,
                     'notes' => $itemNotes ?: 'Manual/External sale return',
                     'created_by' => auth()->id(),
@@ -747,6 +759,14 @@ class ReturnProduct extends Component
 
                 // Restock product stock in database
                 $this->updateManualProductStock($item['product_id'], $qty, $condition);
+            }
+
+            if ($custId) {
+                $customer = Customer::find($custId);
+                if ($customer) {
+                    $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalManualReturnAmount;
+                    $customer->save();
+                }
             }
         });
 

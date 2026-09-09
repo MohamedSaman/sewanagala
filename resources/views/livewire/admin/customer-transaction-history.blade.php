@@ -13,41 +13,49 @@
 
     <!-- Summary Cards -->
     <div class="row mb-4">
-        <div class="col-md-3 mb-3 mb-md-0">
+        <div class="col-md-6 col-lg-2-4 mb-3 mb-lg-0">
             <div class="card shadow-sm border-0 border-start border-4 border-info h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.8rem;">Total Debits</h6>
-                    <h4 class="mb-0 fw-bold">Rs.{{ number_format($transactions->sum('debit'), 2) }}</h4>
+                <div class="card-body p-3">
+                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.75rem;">Total Debits</h6>
+                    <h5 class="mb-0 fw-bold">Rs.{{ number_format($transactions->sum('debit'), 2) }}</h5>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3 mb-md-0">
+        <div class="col-md-6 col-lg-2-4 mb-3 mb-lg-0">
             <div class="card shadow-sm border-0 border-start border-4 border-success h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.8rem;">Total Payments</h6>
-                    <h4 class="mb-0 fw-bold">Rs.{{ number_format($transactions->where('type', 'Payment')->sum('credit'), 2) }}</h4>
+                <div class="card-body p-3">
+                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.75rem;">Total Payments</h6>
+                    <h5 class="mb-0 fw-bold">Rs.{{ number_format($transactions->where('type', 'Payment')->sum('credit'), 2) }}</h5>
                 </div>
             </div>
         </div>
-        <div class="col-md-3 mb-3 mb-md-0">
+        <div class="col-md-6 col-lg-2-4 mb-3 mb-lg-0">
             <div class="card shadow-sm border-0 border-start border-4 border-warning h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.8rem;">Total Returns</h6>
-                    <h4 class="mb-0 fw-bold">Rs.{{ number_format($transactions->where('type', 'Return')->sum('credit'), 2) }}</h4>
+                <div class="card-body p-3">
+                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.75rem;">Total Returns</h6>
+                    <h5 class="mb-0 fw-bold">Rs.{{ number_format($transactions->whereIn('type', ['Return', 'Manual Return'])->sum('credit'), 2) }}</h5>
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-6 col-lg-2-4 mb-3 mb-lg-0">
+            <div class="card shadow-sm border-0 border-start border-4 border-primary h-100">
+                <div class="card-body p-3">
+                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.75rem;">Overpaid Amount</h6>
+                    <h5 class="mb-0 fw-bold text-success">Rs.{{ number_format((float)$customer->overpaid_amount, 2) }}</h5>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 col-lg-2-4">
             @php
             $currentBalance = $transactions->last() ? $transactions->last()['balance'] : 0;
             @endphp
-            <div class="card shadow-sm border-0 border-start border-4 {{ $currentBalance > 0 ? 'border-danger' : 'border-primary' }} h-100">
-                <div class="card-body">
-                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.8rem;">Closing Balance</h6>
-                    <h4 class="mb-0 fw-bold text-{{ $currentBalance > 0 ? 'danger' : 'success' }}">
+            <div class="card shadow-sm border-0 border-start border-4 {{ $currentBalance > 0 ? 'border-danger' : 'border-success' }} h-100">
+                <div class="card-body p-3">
+                    <h6 class="text-muted text-uppercase mb-1" style="font-size:0.75rem;">Closing Balance</h6>
+                    <h5 class="mb-0 fw-bold text-{{ $currentBalance > 0 ? 'danger' : 'success' }}">
                         Rs.{{ number_format($currentBalance, 2) }}
                         <small class="fs-6">{{ $currentBalance > 0 ? '(Due)' : ($currentBalance < 0 ? '(Advance)' : '') }}</small>
-                    </h4>
+                    </h5>
                 </div>
             </div>
         </div>
@@ -85,6 +93,8 @@
                                 <span class="badge bg-success w-100">Payment</span>
                                 @elseif($transaction['type'] == 'Return')
                                 <span class="badge bg-warning text-dark w-100">Return</span>
+                                @elseif($transaction['type'] == 'Manual Return')
+                                <span class="badge bg-warning text-dark w-100">Manual Return</span>
                                 @elseif($transaction['type'] == 'Returned Cheque')
                                 <span class="badge bg-danger w-100">Return Chq</span>
                                 @endif
@@ -233,6 +243,9 @@
                                                     <option value="cash">Cash</option>
                                                     <option value="cheque">Cheque</option>
                                                     <option value="bank_transfer">Bank Transfer</option>
+                                                    @if((float)$customer->overpaid_amount > 0)
+                                                    <option value="overpaid_amount">Overpaid Amount (Available: Rs.{{ number_format((float)$customer->overpaid_amount, 2) }})</option>
+                                                    @endif
                                                 </select>
                                             </td>
                                             <td>
@@ -325,6 +338,8 @@
                                                             <input type="text" wire:model.blur="paymentRows.{{ $index }}.transfer_reference" class="form-control form-control-sm border-0 shadow-sm" placeholder="Ref No">
                                                         </div>
                                                     </div>
+                                                @elseif($row['method'] === 'overpaid_amount')
+                                                    <span class="text-success small fw-semibold px-2"><i class="bi bi-wallet2 me-1"></i> Customer overpaid credit adjustment (Available: Rs. {{ number_format((float)$customer->overpaid_amount, 2) }})</span>
                                                 @else
                                                     <span class="text-muted small px-2">Standard cash payment</span>
                                                 @endif
@@ -431,4 +446,15 @@
         }
     }
 </script>
+@endpush
+
+@push('styles')
+<style>
+    @media (min-width: 992px) {
+        .col-lg-2-4 {
+            flex: 0 0 auto;
+            width: 20%;
+        }
+    }
+</style>
 @endpush
