@@ -27,6 +27,7 @@ class POSSession extends Model
         'supplier_payment',
         'salary_payment',
         'refunds',
+        'manual_returns',
         'expenses',
         'cash_deposit_bank',
         'expected_cash',
@@ -50,6 +51,7 @@ class POSSession extends Model
         'supplier_payment' => 'decimal:2',
         'salary_payment' => 'decimal:2',
         'refunds' => 'decimal:2',
+        'manual_returns' => 'decimal:2',
         'expenses' => 'decimal:2',
         'cash_deposit_bank' => 'decimal:2',
         'expected_cash' => 'decimal:2',
@@ -181,7 +183,13 @@ class POSSession extends Model
         $this->bank_transfer = $payments->where('payment_method', 'bank_transfer')->sum('amount');
 
         // Get refunds (returns) for this session
-        $this->refunds = 0; // You can add returns logic here if needed
+        $this->refunds = (float)\Illuminate\Support\Facades\DB::table('returns_products')
+            ->whereDate('created_at', $this->session_date)
+            ->sum('total_amount');
+
+        $this->manual_returns = (float)\Illuminate\Support\Facades\DB::table('manual_sale_returns')
+            ->whereDate('created_at', $this->session_date)
+            ->sum('total_amount');
 
         $this->save();
     }

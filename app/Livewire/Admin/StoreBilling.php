@@ -175,6 +175,10 @@ class StoreBilling extends Component
                     ->whereDate('created_at', $yesterday)
                     ->sum('total_amount');
 
+                $manualReturns = DB::table('manual_sale_returns')
+                    ->whereDate('created_at', $yesterday)
+                    ->sum('total_amount');
+
                 $deposits = DB::table('deposits')
                     ->whereDate('date', $yesterday)
                     ->sum('amount');
@@ -189,6 +193,7 @@ class StoreBilling extends Component
                     'cash_sales' => $cashPayments,
                     'expenses' => $expenses,
                     'refunds' => $refunds,
+                    'manual_returns' => $manualReturns,
                     'cash_deposit_bank' => $deposits,
                     'status' => 'closed',
                     'closed_at' => now(),
@@ -2060,6 +2065,11 @@ class StoreBilling extends Component
             ->whereDate('created_at', $today)
             ->sum('total_amount');
 
+        // Get manual returns today
+        $manualReturnsToday = DB::table('manual_sale_returns')
+            ->whereDate('created_at', $today)
+            ->sum('total_amount');
+
         // Get expenses today
         $expensesToday = DB::table('expenses')
             ->whereDate('date', $today)
@@ -2096,6 +2106,7 @@ class StoreBilling extends Component
             'cheque_payment' => $posChequePayments,
             'bank_transfer' => $posBankTransfers,
             'refunds' => $refundsToday,
+            'manual_returns' => $manualReturnsToday,
             'expenses' => $expensesToday,
             'cash_deposit_bank' => $cashDepositBank,
             'supplier_payment' => $supplierCashPaymentToday,
@@ -2135,6 +2146,7 @@ class StoreBilling extends Component
 
             // Deductions
             'refunds' => $refundsToday,
+            'manual_returns' => $manualReturnsToday,
             'expenses' => $expensesToday,
             'cash_deposit_bank' => $cashDepositBank,
             'supplier_payment' => $supplierPaymentToday,
@@ -2196,6 +2208,7 @@ class StoreBilling extends Component
                 'cheque_payment' => $this->sessionSummary['pos_cheque_payment'] ?? 0,
                 'bank_transfer' => $this->sessionSummary['pos_bank_transfer'] ?? 0,
                 'refunds' => $this->sessionSummary['refunds'] ?? 0,
+                'manual_returns' => $this->sessionSummary['manual_returns'] ?? 0,
                 'expenses' => $this->sessionSummary['expenses'] ?? 0,
                 'cash_deposit_bank' => $this->sessionSummary['cash_deposit_bank'] ?? 0,
                 'supplier_payment' => $this->sessionSummary['supplier_cash_payment'] ?? ($this->sessionSummary['supplier_payment'] ?? 0),
@@ -2230,21 +2243,24 @@ class StoreBilling extends Component
 
             DB::commit();
 
-            // Close modal
+            // Clear session data
             $this->showCloseRegisterModal = false;
+            $this->sessionSummary = [];
+            $this->currentSession = null;
 
             // Flash success message
-            session()->flash('success', 'POS register closed successfully! Closing cash: Rs. ' . number_format($expectedClosingCash, 2));
+            session()->flash('success', 'POS register closed successfully! Final cash in hand: Rs. ' . number_format($expectedClosingCash, 2));
 
             // Redirect to dashboard
             return redirect()->route('admin.dashboard');
+
         } catch (\Exception $e) {
             DB::rollBack();
-            Log::error('Failed to close POS session: ' . $e->getMessage());
 
+            Log::error('Error closing register: ' . $e->getMessage());
             session()->flash('error', 'Failed to close register: ' . $e->getMessage());
 
-            return redirect()->route('admin.dashboard');
+            $this->showCloseRegisterModal = false;
         }
     }
 
@@ -2254,10 +2270,8 @@ class StoreBilling extends Component
      */
     public function reopenPOSSession()
     {
-        $today = now()->toDateString();
-        $userId = Auth::id();
-        $session = POSSession::where('user_id', $userId)
-            ->whereDate('session_date', $today)
+        // Find today's closed session
+        $session = POSSession::whereDate('session_date', now()->toDateString())
             ->where('status', 'closed')
             ->first();
 
@@ -2280,6 +2294,7 @@ class StoreBilling extends Component
                 'bank_transfer' => 0,
                 'late_payment_bulk' => 0,
                 'refunds' => 0,
+                'manual_returns' => 0,
                 'expenses' => 0,
                 'cash_deposit_bank' => 0,
                 'expected_cash' => 0,

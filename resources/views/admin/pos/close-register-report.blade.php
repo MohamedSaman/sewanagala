@@ -225,6 +225,10 @@
                 <td class="text-end">Rs.{{ number_format($summary['refunds'] ?? 0, 2) }}</td>
             </tr>
             <tr>
+                <td>Manual Returns:</td>
+                <td class="text-end">Rs.{{ number_format($summary['manual_returns'] ?? 0, 2) }}</td>
+            </tr>
+            <tr>
                 <td>Total Cash Supplier Payment:</td>
                 <td class="text-end">Rs.{{ number_format($summary['supplier_cash_payment'] ?? 0, 2) }}</td>
             </tr>

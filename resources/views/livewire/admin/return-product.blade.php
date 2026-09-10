@@ -391,19 +391,92 @@
 
                         @if($selectedManualCustomer)
                         <div class="p-3 bg-light border rounded position-relative">
-                            <div class="d-flex align-items-center justify-content-between">
+                            <div class="d-flex align-items-center justify-content-between mb-2">
                                 <div class="d-flex align-items-center">
                                     <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 38px; height: 38px;">
                                         <i class="bi bi-person-fill fs-5"></i>
                                     </div>
                                     <div>
-                                        <div class="fw-bold">{{ $selectedManualCustomer->name }}</div>
+                                        <div class="fw-bold text-dark">{{ $selectedManualCustomer->name }}</div>
                                         <small class="text-muted">{{ $selectedManualCustomer->phone ?? 'No phone' }} | {{ $selectedManualCustomer->address ?? 'No address' }}</small>
                                     </div>
                                 </div>
                                 <button type="button" class="btn btn-outline-danger btn-sm" wire:click="clearManualCustomer" title="Change Customer">
                                     <i class="bi bi-x-lg"></i>
                                 </button>
+                            </div>
+
+                            <!-- Customer Balances -->
+                            <div class="row g-2 pt-2 border-top">
+                                <div class="col-6">
+                                    <div class="p-2 bg-white rounded border">
+                                        <small class="text-muted d-block" style="font-size: 0.75rem;">Current Due Amount</small>
+                                        <span class="fw-bold {{ $manualCustomerDueAmount > 0 ? 'text-danger' : 'text-secondary' }}">
+                                            Rs.{{ number_format($manualCustomerDueAmount, 2) }}
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="col-6">
+                                    <div class="p-2 bg-white rounded border">
+                                        <small class="text-muted d-block" style="font-size: 0.75rem;">Overpaid Balance</small>
+                                        <span class="fw-bold {{ $manualCustomerOverpaidAmount > 0 ? 'text-success' : 'text-secondary' }}">
+                                            Rs.{{ number_format($manualCustomerOverpaidAmount, 2) }}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Toggle Switch: Settle Due Amount -->
+                            <div class="mt-3 pt-2 border-top">
+                                <div class="d-flex align-items-center justify-content-between p-2 rounded border {{ $manualAdjustDue ? 'bg-primary bg-opacity-10 border-primary' : 'bg-white border-secondary-subtle' }}">
+                                    <div class="me-2">
+                                        <div class="d-flex align-items-center gap-1">
+                                            <i class="bi bi-arrow-left-right text-primary"></i>
+                                            <label class="form-check-label fw-bold text-dark mb-0 small" for="manualAdjustDueToggle" style="cursor: pointer;">
+                                                Deduct from Due Amount
+                                            </label>
+                                        </div>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">
+                                            {{ $manualAdjustDue ? 'Reduces due first; remaining added to overpaid' : 'Full return credited to overpaid balance' }}
+                                        </small>
+                                    </div>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="manualAdjustDueToggle" 
+                                               wire:model.live="manualAdjustDue" style="cursor: pointer; width: 2.5em; height: 1.25em;">
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Preview of settlement calculation -->
+                                @if($manualTotalReturnValue > 0)
+                                    @if($manualAdjustDue)
+                                        @php
+                                            $settleDue = min($manualTotalReturnValue, $manualCustomerDueAmount);
+                                            $addOverpaid = max(0, $manualTotalReturnValue - $manualCustomerDueAmount);
+                                        @endphp
+                                        <div class="mt-2 p-2 rounded small {{ $manualCustomerDueAmount > 0 ? 'bg-success bg-opacity-10 text-success border border-success' : 'bg-info bg-opacity-10 text-info border border-info' }}" style="font-size: 0.8rem;">
+                                            @if($manualCustomerDueAmount > 0)
+                                                <div class="d-flex justify-content-between">
+                                                    <span><i class="bi bi-check-circle me-1"></i> Deduct from Due:</span>
+                                                    <strong>Rs.{{ number_format($settleDue, 2) }}</strong>
+                                                </div>
+                                                @if($addOverpaid > 0)
+                                                <div class="d-flex justify-content-between mt-1 text-primary">
+                                                    <span><i class="bi bi-plus-circle me-1"></i> Excess to Overpaid:</span>
+                                                    <strong>Rs.{{ number_format($addOverpaid, 2) }}</strong>
+                                                </div>
+                                                @endif
+                                            @else
+                                                <div>
+                                                    <i class="bi bi-info-circle me-1"></i> No due amount found. Full <strong>Rs.{{ number_format($manualTotalReturnValue, 2) }}</strong> will be added to Overpaid.
+                                                </div>
+                                            @endif
+                                        </div>
+                                    @else
+                                        <div class="mt-2 p-2 rounded small bg-warning bg-opacity-10 border border-warning text-dark" style="font-size: 0.8rem;">
+                                            <i class="bi bi-info-circle me-1"></i> Full <strong>Rs.{{ number_format($manualTotalReturnValue, 2) }}</strong> will be credited to Overpaid (Due untouched).
+                                        </div>
+                                    @endif
+                                @endif
                             </div>
                         </div>
                         @else
@@ -571,12 +644,41 @@
 
                     <div class="p-3 bg-light border-top">
                         <div class="row align-items-center">
-                            <div class="col-md-6 mb-2 mb-md-0">
-                                <div class="small text-muted">
-                                    <i class="bi bi-info-circle me-1"></i> Returned usable items will be added back to <strong>available stock</strong>. Damaged items will be added to <strong>damage stock</strong>.
-                                </div>
+                            <div class="col-md-7 mb-2 mb-md-0">
+                                @if($selectedManualCustomer)
+                                    @php
+                                        $summarySettle = $manualAdjustDue ? min($manualTotalReturnValue, $manualCustomerDueAmount) : 0;
+                                        $summaryOverpaid = $manualAdjustDue ? max(0, $manualTotalReturnValue - $manualCustomerDueAmount) : $manualTotalReturnValue;
+                                    @endphp
+                                    <div class="p-2 bg-white rounded border small">
+                                        <div class="d-flex justify-content-between align-items-center mb-1">
+                                            <span class="fw-semibold text-dark">
+                                                <i class="bi bi-arrow-left-right text-primary me-1"></i> Due Settlement:
+                                            </span>
+                                            <span class="badge {{ $manualAdjustDue ? 'bg-primary' : 'bg-secondary' }}">
+                                                {{ $manualAdjustDue ? 'ENABLED' : 'DISABLED' }}
+                                            </span>
+                                        </div>
+                                        @if($manualAdjustDue && $summarySettle > 0)
+                                        <div class="d-flex justify-content-between text-danger fw-semibold">
+                                            <span>Deduct from Due Balance:</span>
+                                            <span>- Rs.{{ number_format($summarySettle, 2) }}</span>
+                                        </div>
+                                        @endif
+                                        @if($summaryOverpaid > 0)
+                                        <div class="d-flex justify-content-between text-success fw-semibold">
+                                            <span>Add to Overpaid Balance:</span>
+                                            <span>+ Rs.{{ number_format($summaryOverpaid, 2) }}</span>
+                                        </div>
+                                        @endif
+                                    </div>
+                                @else
+                                    <div class="small text-muted">
+                                        <i class="bi bi-info-circle me-1"></i> Returned usable items will be added back to <strong>available stock</strong>. Damaged items will be added to <strong>damage stock</strong>.
+                                    </div>
+                                @endif
                             </div>
-                            <div class="col-md-6 text-end">
+                            <div class="col-md-5 text-end">
                                 <div class="text-muted small">Total Return Value</div>
                                 <div class="fs-3 fw-bold text-success">
                                     Rs.{{ number_format($manualTotalReturnValue, 2) }}
@@ -639,6 +741,41 @@
                                 <strong>{{ $selectedManualCustomer ? $selectedManualCustomer->name : ($manualCustomerName ?: 'Walk-in Customer') }}</strong>
                             </div>
                         </div>
+                        @if($selectedManualCustomer)
+                        <div class="col-md-12">
+                            @php
+                                $modalSettle = $manualAdjustDue ? min($manualTotalReturnValue, $manualCustomerDueAmount) : 0;
+                                $modalOverpaid = $manualAdjustDue ? max(0, $manualTotalReturnValue - $manualCustomerDueAmount) : $manualTotalReturnValue;
+                            @endphp
+                            <div class="p-3 border rounded {{ $manualAdjustDue ? 'bg-primary bg-opacity-10 border-primary' : 'bg-light' }}">
+                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                    <span class="small fw-bold text-dark">
+                                        <i class="bi bi-arrow-left-right me-1 text-primary"></i> Settle Customer Due:
+                                    </span>
+                                    <span class="badge {{ $manualAdjustDue ? 'bg-primary' : 'bg-secondary' }}">
+                                        {{ $manualAdjustDue ? 'ENABLED' : 'DISABLED' }}
+                                    </span>
+                                </div>
+                                <div class="small pt-1">
+                                    @if($manualAdjustDue && $modalSettle > 0)
+                                    <div class="d-flex justify-content-between text-danger fw-semibold">
+                                        <span>Deduct from Customer Due:</span>
+                                        <span>- Rs.{{ number_format($modalSettle, 2) }}</span>
+                                    </div>
+                                    @endif
+                                    @if($modalOverpaid > 0)
+                                    <div class="d-flex justify-content-between text-success fw-semibold mt-1">
+                                        <span>Add to Overpaid Balance:</span>
+                                        <span>+ Rs.{{ number_format($modalOverpaid, 2) }}</span>
+                                    </div>
+                                    @endif
+                                    @if($manualAdjustDue && $modalSettle <= 0 && $modalOverpaid <= 0)
+                                    <div class="text-muted">No balance change.</div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        @endif
                     </div>
 
                     <h6 class="fw-bold mb-2">Return Items Summary</h6>
@@ -687,8 +824,11 @@
                 </div>
                 <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-success px-4 fw-bold" wire:click="confirmManualReturn">
-                        <i class="bi bi-check-circle me-1"></i> Confirm & Save Return
+                    <button type="button" class="btn btn-success px-4 fw-bold shadow-sm" wire:click="confirmManualReturn" wire:loading.attr="disabled">
+                        <span wire:loading wire:target="confirmManualReturn" class="spinner-border spinner-border-sm me-1" role="status"></span>
+                        <i class="bi bi-check-circle me-1" wire:loading.remove wire:target="confirmManualReturn"></i> 
+                        <span wire:loading.remove wire:target="confirmManualReturn">Confirm & Save Return</span>
+                        <span wire:loading wire:target="confirmManualReturn">Processing...</span>
                     </button>
                 </div>
             </div>

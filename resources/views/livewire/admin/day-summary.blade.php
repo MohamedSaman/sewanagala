@@ -94,6 +94,7 @@
                                     <th class="border-0 py-3">Total Sales</th>
                                     <th class="border-0 py-3">Cash Sales</th>
                                     <th class="border-0 py-3">Expenses</th>
+                                    <th class="border-0 py-3">Manual Returns</th>
                                     <th class="border-0 py-3">Status</th>
                                 </tr>
                             </thead>
@@ -120,6 +121,7 @@
                                     </td>
                                     <td>Rs.{{ number_format($session->cash_sales, 2) }}</td>
                                     <td>Rs.{{ number_format($session->expenses, 2) }}</td>
+                                    <td>Rs.{{ number_format($session->manual_returns ?? 0, 2) }}</td>
                                     <td>
                                         <span class="badge bg-success rounded-0">
                                             <i class="bi bi-check-circle me-1"></i>{{ ucfirst($session->status) }}

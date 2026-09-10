@@ -9,6 +9,7 @@ use App\Models\Sale;
 use App\Models\ProductStock;
 use App\Models\ReturnsProduct;
 use App\Models\ManualSaleReturn;
+use App\Models\Payment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Layout;
@@ -66,6 +67,9 @@ class ReturnProduct extends Component
     public $manualReturnItems = [];
     public $manualTotalReturnValue = 0;
     public $manualNotes = '';
+    public $manualAdjustDue = false; // Toggle to settle customer due or add to overpaid
+    public $manualCustomerDueAmount = 0;
+    public $manualCustomerOverpaidAmount = 0;
 
     public function mount()
     {
@@ -557,7 +561,42 @@ class ReturnProduct extends Component
             $this->manualCustomerPhone = $customer->phone ?? '';
             $this->manualCustomerSearch = '';
             $this->manualCustomers = [];
+            $this->loadManualCustomerBalances();
         }
+    }
+
+    /** 📊 Load Selected Manual Customer Balances (Due & Overpaid) */
+    public function loadManualCustomerBalances()
+    {
+        if (!$this->selectedManualCustomer) {
+            $this->manualCustomerDueAmount = 0;
+            $this->manualCustomerOverpaidAmount = 0;
+            return;
+        }
+
+        $customer = Customer::find($this->selectedManualCustomer->id);
+        if (!$customer) {
+            $this->manualCustomerDueAmount = 0;
+            $this->manualCustomerOverpaidAmount = 0;
+            return;
+        }
+
+        $this->selectedManualCustomer = $customer;
+        $this->manualCustomerOverpaidAmount = (float)($customer->overpaid_amount ?? 0);
+
+        $openingBalance = (float)($customer->opening_balance ?? 0);
+        $pendingSales = Sale::where('customer_id', $customer->id)
+            ->whereIn('payment_status', ['pending', 'partial'])
+            ->get();
+
+        $salesDue = 0;
+        foreach ($pendingSales as $sale) {
+            $returnAmount = ReturnsProduct::where('sale_id', $sale->id)->sum('total_amount');
+            $adjustedDue = max(0, (float)$sale->due_amount - (float)$returnAmount);
+            $salesDue += $adjustedDue;
+        }
+
+        $this->manualCustomerDueAmount = $openingBalance + $salesDue;
     }
 
     /** ❌ Clear Selected Customer for Manual Return */
@@ -568,6 +607,9 @@ class ReturnProduct extends Component
         $this->manualCustomerPhone = '';
         $this->manualCustomerSearch = '';
         $this->manualCustomers = [];
+        $this->manualCustomerDueAmount = 0;
+        $this->manualCustomerOverpaidAmount = 0;
+        $this->manualAdjustDue = false;
     }
 
     /** 🔍 Search Product to add to Manual Return */
@@ -668,6 +710,7 @@ class ReturnProduct extends Component
         $this->manualInvoiceDate = now()->format('Y-m-d');
         $this->clearManualCustomer();
         $this->manualNotes = '';
+        $this->manualAdjustDue = false;
     }
 
     /** ✅ Validate and prompt confirmation for Manual Return */
@@ -713,6 +756,11 @@ class ReturnProduct extends Component
             }
         }
 
+        // Refresh customer balances before showing confirmation
+        if ($this->selectedManualCustomer) {
+            $this->loadManualCustomerBalances();
+        }
+
         $this->dispatch('show-manual-return-modal');
     }
 
@@ -730,49 +778,154 @@ class ReturnProduct extends Component
         $invNumber = trim($this->manualInvoiceNumber);
         $invDate = $this->manualInvoiceDate ?: now()->toDateString();
         $generalNotes = $this->manualNotes;
+        $adjustDue = $this->manualAdjustDue;
 
-        DB::transaction(function () use ($custName, $custId, $invNumber, $invDate, $generalNotes) {
-            $totalManualReturnAmount = 0;
-            foreach ($this->manualReturnItems as $item) {
-                $qty = (float)$item['return_qty'];
-                $unitPrice = (float)$item['unit_price'];
-                $costPrice = (float)($item['cost_price'] ?? 0);
-                $condition = $item['return_condition'] ?? 'usable';
-                $itemNotes = !empty($item['notes']) ? $item['notes'] : $generalNotes;
-                $itemTotal = $qty * $unitPrice;
-                $totalManualReturnAmount += $itemTotal;
+        try {
+            DB::transaction(function () use ($custName, $custId, $invNumber, $invDate, $generalNotes, $adjustDue) {
+                $totalManualReturnAmount = 0;
+                foreach ($this->manualReturnItems as $item) {
+                    $qty = (float)$item['return_qty'];
+                    $unitPrice = (float)$item['unit_price'];
+                    $costPrice = (float)($item['cost_price'] ?? 0);
+                    $condition = $item['return_condition'] ?? 'usable';
+                    $itemNotes = !empty($item['notes']) ? $item['notes'] : $generalNotes;
+                    $itemTotal = $qty * $unitPrice;
+                    $totalManualReturnAmount += $itemTotal;
 
-                ManualSaleReturn::create([
-                    'invoice_number' => $invNumber,
-                    'invoice_date' => $invDate,
-                    'customer_id' => $custId,
-                    'customer_name' => $custName,
-                    'product_id' => $item['product_id'],
-                    'return_quantity' => $qty,
-                    'unit_price' => $unitPrice,
-                    'cost_price' => $costPrice,
-                    'total_amount' => $itemTotal,
-                    'return_condition' => $condition,
-                    'notes' => $itemNotes ?: 'Manual/External sale return',
-                    'created_by' => auth()->id(),
-                ]);
+                    ManualSaleReturn::create([
+                        'invoice_number' => $invNumber,
+                        'invoice_date' => $invDate,
+                        'customer_id' => $custId,
+                        'customer_name' => $custName,
+                        'product_id' => $item['product_id'],
+                        'return_quantity' => $qty,
+                        'unit_price' => $unitPrice,
+                        'cost_price' => $costPrice,
+                        'total_amount' => $itemTotal,
+                        'return_condition' => $condition,
+                        'notes' => $itemNotes ?: 'Manual/External sale return',
+                        'created_by' => auth()->id(),
+                    ]);
 
-                // Restock product stock in database
-                $this->updateManualProductStock($item['product_id'], $qty, $condition);
-            }
-
-            if ($custId) {
-                $customer = Customer::find($custId);
-                if ($customer) {
-                    $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalManualReturnAmount;
-                    $customer->save();
+                    // Restock product stock in database
+                    $this->updateManualProductStock($item['product_id'], $qty, $condition);
                 }
-            }
-        });
 
-        $this->clearManualReturnCart();
-        $this->dispatch('close-manual-return-modal');
-        $this->dispatch('alert', ['message' => 'Manual sale return processed successfully and inventory restocked!']);
+                if ($custId) {
+                    $customer = Customer::find($custId);
+                    if ($customer) {
+                        if ($adjustDue) {
+                            // Calculate total customer due: opening balance + pending/partial sales
+                            $openingBalance = (float)($customer->opening_balance ?? 0);
+                            $pendingSales = Sale::where('customer_id', $customer->id)
+                                ->whereIn('payment_status', ['pending', 'partial'])
+                                ->orderBy('created_at', 'asc')
+                                ->get();
+
+                            $salesList = [];
+                            $salesDueTotal = 0;
+                            foreach ($pendingSales as $sale) {
+                                $returnAmount = ReturnsProduct::where('sale_id', $sale->id)->sum('total_amount');
+                                $adjustedDue = max(0, (float)$sale->due_amount - (float)$returnAmount);
+                                if ($adjustedDue > 0.01) {
+                                    $salesList[] = [
+                                        'sale' => $sale,
+                                        'due_amount' => $adjustedDue,
+                                    ];
+                                    $salesDueTotal += $adjustedDue;
+                                }
+                            }
+
+                            $totalCustomerDue = $openingBalance + $salesDueTotal;
+
+                            if ($totalCustomerDue > 0) {
+                                $remainingToDeduct = min($totalManualReturnAmount, $totalCustomerDue);
+                                $excessOverpaid = max(0, $totalManualReturnAmount - $totalCustomerDue);
+
+                                // 1. Deduct from opening balance first
+                                if ($remainingToDeduct > 0 && (float)$customer->opening_balance > 0) {
+                                    $openingDeduction = min($remainingToDeduct, (float)$customer->opening_balance);
+                                    $customer->opening_balance = max(0, (float)$customer->opening_balance - $openingDeduction);
+                                    $remainingToDeduct -= $openingDeduction;
+                                }
+
+                                // 2. Allocate remaining deduction to pending sales (FIFO)
+                                if ($remainingToDeduct > 0 && !empty($salesList)) {
+                                    $salesDeductionAmount = 0;
+                                    foreach ($salesList as $sItem) {
+                                        if ($remainingToDeduct <= 0) break;
+                                        $dueForThis = $sItem['due_amount'];
+                                        $allocAmt = min($remainingToDeduct, $dueForThis);
+                                        $salesDeductionAmount += $allocAmt;
+                                        $remainingToDeduct -= $allocAmt;
+                                    }
+
+                                    if ($salesDeductionAmount > 0) {
+                                        $adjustmentPayment = Payment::create([
+                                            'customer_id' => $customer->id,
+                                            'amount' => $salesDeductionAmount,
+                                            'payment_method' => 'return_adjustment',
+                                            'payment_reference' => 'MRET-' . $invNumber,
+                                            'payment_date' => $invDate,
+                                            'status' => 'paid',
+                                            'is_completed' => 1,
+                                            'notes' => 'Manual return adjustment against invoice due (Inv #' . $invNumber . ')',
+                                            'created_by' => auth()->id() ?: 1,
+                                        ]);
+
+                                        $remainingForSales = $salesDeductionAmount;
+                                        foreach ($salesList as $sItem) {
+                                            if ($remainingForSales <= 0) break;
+                                            $saleModel = $sItem['sale'];
+                                            $dueForThis = $sItem['due_amount'];
+                                            $allocAmt = min($remainingForSales, $dueForThis);
+
+                                            DB::table('payment_allocations')->insert([
+                                                'payment_id' => $adjustmentPayment->id,
+                                                'sale_id' => $saleModel->id,
+                                                'allocated_amount' => $allocAmt,
+                                                'created_at' => now(),
+                                                'updated_at' => now(),
+                                            ]);
+
+                                            $saleModel->due_amount = max(0, (float)$saleModel->due_amount - $allocAmt);
+                                            $saleModel->payment_status = $saleModel->due_amount <= 0.01 ? 'paid' : 'partial';
+                                            $saleModel->save();
+
+                                            $remainingForSales -= $allocAmt;
+                                        }
+                                    }
+                                }
+
+                                // 3. If return amount exceeds total due, add remainder to overpaid
+                                if ($excessOverpaid > 0) {
+                                    $customer->overpaid_amount = (float)$customer->overpaid_amount + $excessOverpaid;
+                                }
+                                $customer->save();
+                            } else {
+                                // Customer has no due amount -> full return amount adds to overpaid
+                                $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalManualReturnAmount;
+                                $customer->save();
+                            }
+                        } else {
+                            // Toggle is OFF -> full return amount adds directly to overpaid
+                            $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalManualReturnAmount;
+                            $customer->save();
+                        }
+                    }
+                }
+            });
+
+            $this->clearManualReturnCart();
+            $this->dispatch('close-manual-return-modal');
+            $this->dispatch('alert', ['message' => 'Manual sale return processed successfully and inventory restocked!']);
+            $this->dispatch('reload-page');
+        } catch (\Exception $e) {
+            Log::error('Manual Return Confirmation Error: ' . $e->getMessage(), [
+                'trace' => $e->getTraceAsString()
+            ]);
+            $this->js("Swal.fire('Error!', '" . addslashes($e->getMessage()) . "', 'error')");
+        }
     }
 
     /** 📈 Update Product Stock for Manual / External Returns */

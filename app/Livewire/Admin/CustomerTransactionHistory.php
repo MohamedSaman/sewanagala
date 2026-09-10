@@ -349,11 +349,13 @@ class CustomerTransactionHistory extends Component
                     $transactionDate = $payment->created_at;
                 }
 
-                $isOverpaidMethod = $payment->payment_method === 'overpaid_amount';
-                $creditVal = $isOverpaidMethod ? 0 : $payment->amount;
-                $detailsText = $isOverpaidMethod
+                $isOverpaidOrAdjustment = in_array($payment->payment_method, ['overpaid_amount', 'return_adjustment']);
+                $creditVal = $isOverpaidOrAdjustment ? 0 : $payment->amount;
+                $detailsText = $payment->payment_method === 'overpaid_amount'
                     ? 'Applied Overpaid Credit (Rs.' . number_format($payment->amount, 2) . ')'
-                    : 'Payment via ' . ucfirst(str_replace('_', ' ', $payment->payment_method));
+                    : ($payment->payment_method === 'return_adjustment'
+                        ? 'Applied Return Adjustment (Rs.' . number_format($payment->amount, 2) . ')'
+                        : 'Payment via ' . ucfirst(str_replace('_', ' ', $payment->payment_method)));
 
                 return [
                     'type' => 'Payment',

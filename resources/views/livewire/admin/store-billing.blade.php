@@ -1294,6 +1294,10 @@
                         <span>Rs.{{ number_format($sessionSummary['refunds'] ?? 0, 2) }}</span>
                     </div>
                     <div class="pos-reg-row">
+                        <span>Manual Returns</span>
+                        <span>Rs.{{ number_format($sessionSummary['manual_returns'] ?? 0, 2) }}</span>
+                    </div>
+                    <div class="pos-reg-row">
                         <span>Cash Deposit - Bank</span>
                         <span>Rs.{{ number_format($sessionSummary['cash_deposit_bank'] ?? 0, 2) }}</span>
                     </div>

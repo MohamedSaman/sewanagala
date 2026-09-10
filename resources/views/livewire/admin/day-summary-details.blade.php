@@ -57,7 +57,7 @@
     {{-- Second Row of Cards --}}
     <div class="row mb-4">
         {{-- Expenses --}}
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #00acc1 0%, #26c6da 100%);">
                 <div class="card-body text-white text-center py-4">
                     <h2 class="mb-0 fw-bold">{{ number_format($expenses, 2) }}</h2>
@@ -67,7 +67,7 @@
         </div>
 
         {{-- Returns --}}
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #8e24aa 0%, #ab47bc 100%);">
                 <div class="card-body text-white text-center py-4">
                     <h2 class="mb-0 fw-bold">{{ number_format($returns, 2) }}</h2>
@@ -76,8 +76,18 @@
             </div>
         </div>
 
+        {{-- Manual Returns --}}
+        <div class="col-md-3 mb-3">
+            <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #d81b60 0%, #f06292 100%);">
+                <div class="card-body text-white text-center py-4">
+                    <h2 class="mb-0 fw-bold">{{ number_format($manualReturns, 2) }}</h2>
+                    <p class="mb-0 text-uppercase fw-semibold" style="letter-spacing: 1px;">MANUAL RETURNS</p>
+                </div>
+            </div>
+        </div>
+
         {{-- Cash Deposit --}}
-        <div class="col-md-4 mb-3">
+        <div class="col-md-3 mb-3">
             <div class="card border-0 shadow-sm h-100" style="background: linear-gradient(135deg, #7b1fa2 0%, #9c27b0 100%);">
                 <div class="card-body text-white text-center py-4">
                     <h2 class="mb-0 fw-bold">{{ number_format($cashDeposit, 2) }}</h2>

@@ -29,6 +29,7 @@ class DaySummaryDetails extends Component
     public $lateCashPayments = 0;
     public $expenses = 0;
     public $returns = 0;
+    public $manualReturns = 0;
     public $cashDeposit = 0;
     public $currentCash = 0;
     public $supplierPayment = 0;
@@ -83,6 +84,11 @@ class DaySummaryDetails extends Component
 
         // Returns/Refunds
         $this->returns = $this->session->refunds;
+
+        // Manual Returns
+        $this->manualReturns = $this->session->manual_returns ?? DB::table('manual_sale_returns')
+            ->whereDate('created_at', $sessionDate)
+            ->sum('total_amount');
 
         // Cash Deposit
         $this->cashDeposit = $this->session->cash_deposit_bank;

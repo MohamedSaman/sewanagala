@@ -35,6 +35,7 @@ class DaySummary extends Component
     public $todayDepositAmount = 0;
     public $todayExpenses = 0;
     public $todayRefunds = 0;
+    public $todayManualReturns = 0;
     public $openingCash = 0;
     public $perPage = 30;
 
@@ -82,6 +83,11 @@ class DaySummary extends Component
 
         // Today's refunds/returns
         $this->todayRefunds = DB::table('returns_products')
+            ->whereDate('created_at', $today)
+            ->sum('total_amount');
+
+        // Today's manual returns
+        $this->todayManualReturns = DB::table('manual_sale_returns')
             ->whereDate('created_at', $today)
             ->sum('total_amount');
     }
