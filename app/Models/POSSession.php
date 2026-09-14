@@ -74,9 +74,12 @@ class POSSession extends Model
      */
     public static function getTodaySession($userId)
     {
+        // 0. Auto-close any open sessions from previous days first
+        self::autoClosePastSessions();
+
         // 1. Check for an existing open session for this user today
         $existingSession = self::where('user_id', $userId)
-            ->where('session_date', Carbon::today())
+            ->whereDate('session_date', Carbon::today())
             ->where('status', 'open')
             ->first();
 
@@ -85,7 +88,7 @@ class POSSession extends Model
         }
 
         // 2. Check if ANY user already opened/created a session for today
-        $todaySession = self::where('session_date', Carbon::today())
+        $todaySession = self::whereDate('session_date', Carbon::today())
             ->orderBy('id', 'asc')
             ->first();
 
@@ -105,13 +108,91 @@ class POSSession extends Model
     }
 
     /**
+     * Auto-close any open sessions from previous days.
+     * Calculates full expected cash as closing_cash and updates cash_in_hands.
+     */
+    public static function autoClosePastSessions()
+    {
+        $pastOpenSessions = self::where('status', 'open')
+            ->whereDate('session_date', '<', Carbon::today())
+            ->get();
+
+        foreach ($pastOpenSessions as $session) {
+            $session->autoClose();
+        }
+    }
+
+    /**
+     * Auto-close this session using current calculated cash as closing cash.
+     */
+    public function autoClose($notes = 'Auto-closed at midnight')
+    {
+        $expectedCash = $this->calculateExpectedCash();
+
+        $existingClosedSession = self::where('user_id', $this->user_id)
+            ->whereDate('session_date', $this->session_date)
+            ->where('status', 'closed')
+            ->where('id', '!=', $this->id)
+            ->first();
+
+        if ($existingClosedSession) {
+            $existingClosedSession->update([
+                'closing_cash' => $expectedCash,
+                'expected_cash' => $expectedCash,
+                'cash_difference' => 0,
+                'notes' => $existingClosedSession->notes ? $existingClosedSession->notes . ' | ' . $notes : $notes,
+            ]);
+            $this->delete();
+        } else {
+            try {
+                $this->update([
+                    'closing_cash' => $expectedCash,
+                    'expected_cash' => $expectedCash,
+                    'cash_difference' => 0,
+                    'status' => 'closed',
+                    'closed_at' => now(),
+                    'notes' => $this->notes ? $this->notes . ' | ' . $notes : $notes,
+                ]);
+            } catch (\Throwable $e) {
+                $closed = self::where('user_id', $this->user_id)
+                    ->whereDate('session_date', $this->session_date)
+                    ->where('status', 'closed')
+                    ->where('id', '!=', $this->id)
+                    ->first();
+
+                if ($closed) {
+                    $closed->update([
+                        'closing_cash' => $expectedCash,
+                        'expected_cash' => $expectedCash,
+                        'cash_difference' => 0,
+                    ]);
+                    $this->delete();
+                } else {
+                    throw $e;
+                }
+            }
+        }
+
+        // Update cash_in_hands table with the closing cash
+        foreach (['cash in hand', 'cash_amount'] as $key) {
+            \Illuminate\Support\Facades\DB::table('cash_in_hands')->updateOrInsert(
+                ['key' => $key],
+                ['value' => $expectedCash, 'updated_at' => now()]
+            );
+        }
+    }
+
+    /**
      * Create a new session
      */
     public static function openSession($userId, $openingCash, $notes = null)
     {
+        // Auto-close past sessions first
+        self::autoClosePastSessions();
+
         // Check if there's already an open session for this user today
         $existingSession = self::where('user_id', $userId)
-            ->where('session_date', Carbon::today())
+            ->whereDate('session_date', Carbon::today())
             ->where('status', 'open')
             ->first();
         if ($existingSession) {
@@ -130,16 +211,42 @@ class POSSession extends Model
     /**
      * Close the session
      */
-    public function closeSession($closingCash, $notes = null)
+    public function closeSession($closingCash = null, $notes = null)
     {
-        $this->update([
-            'closing_cash' => $closingCash,
-            'status' => 'closed',
-            'closed_at' => now(),
-            'notes' => $notes,
-        ]);
+        $expectedCash = $this->calculateExpectedCash();
+        $finalClosingCash = $closingCash !== null ? (float)$closingCash : $expectedCash;
 
-        $this->calculateDifference();
+        $existingClosedSession = self::where('user_id', $this->user_id)
+            ->whereDate('session_date', $this->session_date)
+            ->where('status', 'closed')
+            ->where('id', '!=', $this->id)
+            ->first();
+
+        if ($existingClosedSession) {
+            $existingClosedSession->update([
+                'closing_cash' => $finalClosingCash,
+                'expected_cash' => $expectedCash,
+                'cash_difference' => $finalClosingCash - $expectedCash,
+                'notes' => $notes ?: $existingClosedSession->notes,
+            ]);
+            $this->delete();
+        } else {
+            $this->update([
+                'closing_cash' => $finalClosingCash,
+                'status' => 'closed',
+                'closed_at' => now(),
+                'notes' => $notes,
+            ]);
+            $this->calculateDifference();
+        }
+
+        // Update cash_in_hands table with the closing cash
+        foreach (['cash in hand', 'cash_amount'] as $key) {
+            \Illuminate\Support\Facades\DB::table('cash_in_hands')->updateOrInsert(
+                ['key' => $key],
+                ['value' => $finalClosingCash, 'updated_at' => now()]
+            );
+        }
     }
 
     /**
@@ -147,8 +254,9 @@ class POSSession extends Model
      */
     public function calculateDifference()
     {
-        $expectedCash = $this->opening_cash + $this->cash_sales + ($this->late_payment_bulk ?? 0) - $this->refunds - $this->expenses - $this->cash_deposit_bank - ($this->supplier_payment ?? 0) - ($this->salary_payment ?? 0);
-        $difference = $this->closing_cash - $expectedCash;
+        $expectedCash = $this->calculateExpectedCash();
+        $closingCash = $this->closing_cash !== null ? (float)$this->closing_cash : $expectedCash;
+        $difference = $closingCash - $expectedCash;
 
         $this->update([
             'expected_cash' => $expectedCash,
@@ -157,41 +265,115 @@ class POSSession extends Model
     }
 
     /**
+     * Calculate current expected cash in hand for this session & update attributes
+     */
+    public function calculateExpectedCash()
+    {
+        $sessionDate = $this->session_date ? Carbon::parse($this->session_date)->toDateString() : now()->toDateString();
+
+        // 1. Opening Cash
+        $openingCash = (float)($this->opening_cash ?? 0);
+
+        // 2. POS Cash Sales
+        $posSalesToday = Sale::whereDate('created_at', $sessionDate)
+            ->where('sale_type', 'pos')
+            ->pluck('id');
+
+        $cashSales = (float)Payment::whereIn('sale_id', $posSalesToday)
+            ->where('payment_method', 'cash')
+            ->whereDate('payment_date', $sessionDate)
+            ->sum('amount');
+
+        // 3. Late Cash Payments (bulk / admin cash payments)
+        $lateCashPayments = (float)Payment::where(function ($query) use ($posSalesToday) {
+            $query->whereNotIn('sale_id', $posSalesToday)
+                ->orWhereNull('sale_id');
+        })
+            ->whereDate('payment_date', $sessionDate)
+            ->where('payment_method', 'cash')
+            ->where('is_completed', true)
+            ->sum('amount');
+
+        // 4. Expenses
+        $expenses = (float)\Illuminate\Support\Facades\DB::table('expenses')
+            ->whereDate('date', $sessionDate)
+            ->sum('amount');
+
+        // 5. Refunds (System Returns) - Cash refunds
+        $refunds = (float)\Illuminate\Support\Facades\DB::table('returns_products')
+            ->whereDate('created_at', $sessionDate)
+            ->sum(\Illuminate\Support\Facades\DB::raw("CASE WHEN refund_cash_amount IS NOT NULL THEN refund_cash_amount WHEN refund_type IS NULL OR refund_type = 'cash' THEN total_amount ELSE 0 END"));
+
+        // 6. Manual Returns - Cash refunds
+        $manualReturns = (float)\Illuminate\Support\Facades\DB::table('manual_sale_returns')
+            ->whereDate('created_at', $sessionDate)
+            ->sum(\Illuminate\Support\Facades\DB::raw("CASE WHEN refund_cash_amount IS NOT NULL THEN refund_cash_amount WHEN refund_type IS NULL OR refund_type = 'cash' THEN total_amount ELSE 0 END"));
+
+        // 7. Cash Deposit to Bank
+        $cashDeposit = (float)\Illuminate\Support\Facades\DB::table('deposits')
+            ->whereDate('date', $sessionDate)
+            ->sum('amount');
+
+        // 8. Supplier Payments (Cash)
+        $supplierPayment = (float)\Illuminate\Support\Facades\DB::table('purchase_payments')
+            ->whereDate('payment_date', $sessionDate)
+            ->where('payment_method', 'cash')
+            ->sum('amount');
+
+        // 9. Salary Payments (Cash)
+        $salaryPayment = (float)\Illuminate\Support\Facades\DB::table('salary_payments')
+            ->whereDate('payment_date', $sessionDate)
+            ->where('payment_method', 'cash')
+            ->sum('amount');
+
+        // Total POS Sales Amount (Cash + Cheque + Card + Bank)
+        $totalSales = (float)Sale::whereDate('created_at', $sessionDate)
+            ->where('sale_type', 'pos')
+            ->sum('total_amount');
+
+        $chequePayment = (float)Payment::whereIn('sale_id', $posSalesToday)
+            ->where('payment_method', 'cheque')
+            ->whereDate('payment_date', $sessionDate)
+            ->sum('amount');
+
+        $cardPayment = (float)Payment::whereIn('sale_id', $posSalesToday)
+            ->where('payment_method', 'card')
+            ->whereDate('payment_date', $sessionDate)
+            ->sum('amount');
+
+        $bankTransfer = (float)Payment::whereIn('sale_id', $posSalesToday)
+            ->where('payment_method', 'bank_transfer')
+            ->whereDate('payment_date', $sessionDate)
+            ->sum('amount');
+
+        // Update model properties
+        $this->total_sales = $totalSales;
+        $this->cash_sales = $cashSales;
+        $this->cheque_payment = $chequePayment;
+        $this->credit_card_payment = $cardPayment;
+        $this->bank_transfer = $bankTransfer;
+        $this->late_payment_bulk = $lateCashPayments;
+        $this->expenses = $expenses;
+        $this->refunds = $refunds;
+        $this->manual_returns = $manualReturns;
+        $this->cash_deposit_bank = $cashDeposit;
+        $this->supplier_payment = $supplierPayment;
+        $this->salary_payment = $salaryPayment;
+
+        $expectedCash = $openingCash + $cashSales + $lateCashPayments - $expenses - $refunds - $manualReturns - $cashDeposit - $supplierPayment - $salaryPayment;
+
+        $this->expected_cash = $expectedCash;
+        $this->save();
+
+        return $expectedCash;
+    }
+
+    /**
      * Update session totals from sales
      */
     public function updateFromSales()
     {
-        // Get all POS sales for this user on this date
-        $sales = Sale::where('user_id', $this->user_id)
-            ->where('sale_type', 'pos')
-            ->whereDate('created_at', $this->session_date)
-            ->with('payments')
-            ->get();
-
-        // Total sales amount
-        $this->total_sales = $sales->sum('total_amount');
-
-        // Get payment details from payments table
-        $payments = Payment::whereIn('sale_id', $sales->pluck('id'))
-            ->whereDate('payment_date', $this->session_date)
-            ->get();
-
-        // Group payments by method
-        $this->cash_sales = $payments->where('payment_method', 'cash')->sum('amount');
-        $this->cheque_payment = $payments->where('payment_method', 'cheque')->sum('amount');
-        $this->credit_card_payment = $payments->where('payment_method', 'card')->sum('amount');
-        $this->bank_transfer = $payments->where('payment_method', 'bank_transfer')->sum('amount');
-
-        // Get refunds (returns) for this session
-        $this->refunds = (float)\Illuminate\Support\Facades\DB::table('returns_products')
-            ->whereDate('created_at', $this->session_date)
-            ->sum('total_amount');
-
-        $this->manual_returns = (float)\Illuminate\Support\Facades\DB::table('manual_sale_returns')
-            ->whereDate('created_at', $this->session_date)
-            ->sum('total_amount');
-
-        $this->save();
+        return $this->calculateExpectedCash();
     }
 
     /**

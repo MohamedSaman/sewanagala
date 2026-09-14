@@ -80,21 +80,27 @@ class DaySummaryDetails extends Component
             ->sum('amount');
 
         // Expenses
-        $this->expenses = $this->session->expenses;
+        $this->expenses = (float)($this->session->expenses ?? 0);
 
-        // Returns/Refunds
-        $this->returns = $this->session->refunds;
-
-        // Manual Returns
-        $this->manualReturns = $this->session->manual_returns ?? DB::table('manual_sale_returns')
+        // Returns/Refunds (Cash refunds only)
+        $this->returns = (float)DB::table('returns_products')
             ->whereDate('created_at', $sessionDate)
-            ->sum('total_amount');
+            ->sum(DB::raw("CASE WHEN refund_cash_amount IS NOT NULL THEN refund_cash_amount WHEN refund_type IS NULL OR refund_type = 'cash' THEN total_amount ELSE 0 END"));
+
+        // Manual Returns (Cash refunds only)
+        $this->manualReturns = (float)DB::table('manual_sale_returns')
+            ->whereDate('created_at', $sessionDate)
+            ->sum(DB::raw("CASE WHEN refund_cash_amount IS NOT NULL THEN refund_cash_amount WHEN refund_type IS NULL OR refund_type = 'cash' THEN total_amount ELSE 0 END"));
 
         // Cash Deposit
-        $this->cashDeposit = $this->session->cash_deposit_bank;
+        $this->cashDeposit = (float)($this->session->cash_deposit_bank ?? 0);
 
-        // Current Cash
-        $this->currentCash = $this->cashInHand + $this->cashSales + $this->lateCashPayments - $this->expenses - $this->returns - $this->cashDeposit - $this->supplierPayment - $this->salaryPayment;
+        // Current Cash / Closing Cash Amount
+        if ($this->session->isClosed() && $this->session->closing_cash !== null) {
+            $this->currentCash = (float)$this->session->closing_cash;
+        } else {
+            $this->currentCash = $this->cashInHand + $this->cashSales + $this->lateCashPayments - $this->expenses - $this->returns - $this->manualReturns - $this->cashDeposit - $this->supplierPayment - $this->salaryPayment;
+        }
     }
 
     public function goBack()

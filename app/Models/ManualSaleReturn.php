@@ -22,6 +22,8 @@ class ManualSaleReturn extends Model
         'cost_price',
         'total_amount',
         'return_condition',
+        'refund_type',
+        'refund_cash_amount',
         'notes',
         'created_by',
     ];
@@ -32,6 +34,7 @@ class ManualSaleReturn extends Model
         'unit_price' => 'decimal:2',
         'cost_price' => 'decimal:2',
         'total_amount' => 'decimal:2',
+        'refund_cash_amount' => 'decimal:2',
     ];
 
     public function customer()

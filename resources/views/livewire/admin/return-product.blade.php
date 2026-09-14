@@ -97,16 +97,105 @@
                     @endif
 
                     @if($selectedCustomer)
-                    <div class="mt-3 p-3 bg-info bg-opacity-10 rounded border border-info">
-                        <h6 class="fw-semibold text-info mb-2">Selected Customer</h6>
-                        <div class="d-flex align-items-center">
-                            <div class="me-3">
-                                <i class="bi bi-person-check fs-4 text-info"></i>
+                    <div class="mt-3 p-3 bg-light border rounded position-relative">
+                        <div class="d-flex align-items-center justify-content-between mb-2">
+                            <div class="d-flex align-items-center">
+                                <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 38px; height: 38px;">
+                                    <i class="bi bi-person-check-fill fs-5"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark">{{ $selectedCustomer->name }}</div>
+                                    <small class="text-muted">{{ $selectedCustomer->phone ?? 'No phone' }} | {{ $selectedCustomer->email ?? 'No email' }}</small>
+                                </div>
                             </div>
-                            <div>
-                                <div class="fw-semibold">{{ $selectedCustomer->name }}</div>
-                                <small class="text-muted">{{ $selectedCustomer->phone }} | {{ $selectedCustomer->email }}</small>
+                        </div>
+
+                        <!-- Customer Balances -->
+                        <div class="row g-2 pt-2 border-top">
+                            <div class="col-6">
+                                <div class="p-2 bg-white rounded border">
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Current Due Amount</small>
+                                    <span class="fw-bold {{ $systemCustomerDueAmount > 0 ? 'text-danger' : 'text-secondary' }}">
+                                        Rs.{{ number_format($systemCustomerDueAmount, 2) }}
+                                    </span>
+                                </div>
                             </div>
+                            <div class="col-6">
+                                <div class="p-2 bg-white rounded border">
+                                    <small class="text-muted d-block" style="font-size: 0.75rem;">Overpaid Balance</small>
+                                    <span class="fw-bold {{ $systemCustomerOverpaidAmount > 0 ? 'text-success' : 'text-secondary' }}">
+                                        Rs.{{ number_format($systemCustomerOverpaidAmount, 2) }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Toggles for System Return -->
+                        <div class="mt-3 pt-2 border-top">
+                            <div class="d-flex align-items-center justify-content-between p-2 rounded border mb-2 {{ $systemAdjustDue ? 'bg-primary bg-opacity-10 border-primary' : 'bg-white border-secondary-subtle' }}">
+                                <div class="me-2">
+                                    <div class="d-flex align-items-center gap-1">
+                                        <i class="bi bi-arrow-left-right text-primary"></i>
+                                        <label class="form-check-label fw-bold text-dark mb-0 small" for="systemAdjustDueToggle" style="cursor: pointer;">
+                                            Deduct from Due Amount
+                                        </label>
+                                    </div>
+                                    <small class="text-muted d-block" style="font-size: 0.72rem;">
+                                        Reduces customer's due balance
+                                    </small>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="systemAdjustDueToggle" 
+                                           wire:model.live="systemAdjustDue" @if($systemCustomerDueAmount <= 0) disabled @endif style="cursor: pointer; width: 2.5em; height: 1.25em;">
+                                </div>
+                            </div>
+
+                            <div class="d-flex align-items-center justify-content-between p-2 rounded border {{ $systemAddToOverpaid ? 'bg-success bg-opacity-10 border-success' : 'bg-white border-secondary-subtle' }}">
+                                <div class="me-2">
+                                    <div class="d-flex align-items-center gap-1">
+                                        <i class="bi bi-wallet2 text-success"></i>
+                                        <label class="form-check-label fw-bold text-dark mb-0 small" for="systemAddToOverpaidToggle" style="cursor: pointer;">
+                                            Add to Overpaid Amount
+                                        </label>
+                                    </div>
+                                    <small class="text-muted d-block" style="font-size: 0.72rem;">
+                                        {{ $systemAddToOverpaid ? 'Non-deducted amount credited to customer overpaid balance' : 'Non-deducted amount handed as cash refund (reduces POS cash drawer)' }}
+                                    </small>
+                                </div>
+                                <div class="form-check form-switch mb-0">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="systemAddToOverpaidToggle" 
+                                           wire:model.live="systemAddToOverpaid" style="cursor: pointer; width: 2.5em; height: 1.25em;">
+                                </div>
+                            </div>
+
+                            @if($totalReturnValue > 0)
+                                @php
+                                    $sDueSettle = ($systemAdjustDue && $systemCustomerDueAmount > 0) ? min($totalReturnValue, $systemCustomerDueAmount) : 0;
+                                    $sRemaining = max(0, $totalReturnValue - $sDueSettle);
+                                    $sOverpaid = $systemAddToOverpaid ? $sRemaining : 0;
+                                    $sCashRefund = !$systemAddToOverpaid ? $sRemaining : 0;
+                                @endphp
+                                <div class="mt-2 p-2 rounded small bg-light border" style="font-size: 0.8rem;">
+                                    @if($sDueSettle > 0)
+                                        <div class="d-flex justify-content-between text-primary mb-1">
+                                            <span><i class="bi bi-arrow-left-right me-1"></i> Deduct from Due:</span>
+                                            <strong>Rs.{{ number_format($sDueSettle, 2) }}</strong>
+                                        </div>
+                                    @endif
+                                    @if($sOverpaid > 0)
+                                        <div class="d-flex justify-content-between text-success mb-1">
+                                            <span><i class="bi bi-plus-circle me-1"></i> Credit to Overpaid Balance:</span>
+                                            <strong>Rs.{{ number_format($sOverpaid, 2) }}</strong>
+                                        </div>
+                                    @endif
+                                    @if($sCashRefund > 0)
+                                        <div class="d-flex justify-content-between text-danger mb-1">
+                                            <span><i class="bi bi-cash-stack me-1"></i> Cash Refund to Customer:</span>
+                                            <strong>Rs.{{ number_format($sCashRefund, 2) }}</strong>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
                         </div>
                     </div>
                     @endif
@@ -426,9 +515,9 @@
                                 </div>
                             </div>
 
-                            <!-- Toggle Switch: Settle Due Amount -->
+                            <!-- Toggles for Manual Return -->
                             <div class="mt-3 pt-2 border-top">
-                                <div class="d-flex align-items-center justify-content-between p-2 rounded border {{ $manualAdjustDue ? 'bg-primary bg-opacity-10 border-primary' : 'bg-white border-secondary-subtle' }}">
+                                <div class="d-flex align-items-center justify-content-between p-2 rounded border mb-2 {{ $manualAdjustDue ? 'bg-primary bg-opacity-10 border-primary' : 'bg-white border-secondary-subtle' }}">
                                     <div class="me-2">
                                         <div class="d-flex align-items-center gap-1">
                                             <i class="bi bi-arrow-left-right text-primary"></i>
@@ -437,45 +526,61 @@
                                             </label>
                                         </div>
                                         <small class="text-muted d-block" style="font-size: 0.72rem;">
-                                            {{ $manualAdjustDue ? 'Reduces due first; remaining added to overpaid' : 'Full return credited to overpaid balance' }}
+                                            Reduces customer's due balance
                                         </small>
                                     </div>
                                     <div class="form-check form-switch mb-0">
                                         <input class="form-check-input" type="checkbox" role="switch" id="manualAdjustDueToggle" 
-                                               wire:model.live="manualAdjustDue" style="cursor: pointer; width: 2.5em; height: 1.25em;">
+                                               wire:model.live="manualAdjustDue" @if($manualCustomerDueAmount <= 0) disabled @endif style="cursor: pointer; width: 2.5em; height: 1.25em;">
                                     </div>
                                 </div>
 
-                                <!-- Dynamic Preview of settlement calculation -->
+                                <div class="d-flex align-items-center justify-content-between p-2 rounded border {{ $manualAddToOverpaid ? 'bg-success bg-opacity-10 border-success' : 'bg-white border-secondary-subtle' }}">
+                                    <div class="me-2">
+                                        <div class="d-flex align-items-center gap-1">
+                                            <i class="bi bi-wallet2 text-success"></i>
+                                            <label class="form-check-label fw-bold text-dark mb-0 small" for="manualAddToOverpaidToggle" style="cursor: pointer;">
+                                                Add to Overpaid Amount
+                                            </label>
+                                        </div>
+                                        <small class="text-muted d-block" style="font-size: 0.72rem;">
+                                            {{ $manualAddToOverpaid ? 'Non-deducted amount credited to customer overpaid balance' : 'Non-deducted amount handed as cash refund (reduces POS cash drawer)' }}
+                                        </small>
+                                    </div>
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="manualAddToOverpaidToggle" 
+                                               wire:model.live="manualAddToOverpaid" style="cursor: pointer; width: 2.5em; height: 1.25em;">
+                                    </div>
+                                </div>
+
+                                <!-- Dynamic Breakdown Preview -->
                                 @if($manualTotalReturnValue > 0)
-                                    @if($manualAdjustDue)
-                                        @php
-                                            $settleDue = min($manualTotalReturnValue, $manualCustomerDueAmount);
-                                            $addOverpaid = max(0, $manualTotalReturnValue - $manualCustomerDueAmount);
-                                        @endphp
-                                        <div class="mt-2 p-2 rounded small {{ $manualCustomerDueAmount > 0 ? 'bg-success bg-opacity-10 text-success border border-success' : 'bg-info bg-opacity-10 text-info border border-info' }}" style="font-size: 0.8rem;">
-                                            @if($manualCustomerDueAmount > 0)
-                                                <div class="d-flex justify-content-between">
-                                                    <span><i class="bi bi-check-circle me-1"></i> Deduct from Due:</span>
-                                                    <strong>Rs.{{ number_format($settleDue, 2) }}</strong>
-                                                </div>
-                                                @if($addOverpaid > 0)
-                                                <div class="d-flex justify-content-between mt-1 text-primary">
-                                                    <span><i class="bi bi-plus-circle me-1"></i> Excess to Overpaid:</span>
-                                                    <strong>Rs.{{ number_format($addOverpaid, 2) }}</strong>
-                                                </div>
-                                                @endif
-                                            @else
-                                                <div>
-                                                    <i class="bi bi-info-circle me-1"></i> No due amount found. Full <strong>Rs.{{ number_format($manualTotalReturnValue, 2) }}</strong> will be added to Overpaid.
-                                                </div>
-                                            @endif
-                                        </div>
-                                    @else
-                                        <div class="mt-2 p-2 rounded small bg-warning bg-opacity-10 border border-warning text-dark" style="font-size: 0.8rem;">
-                                            <i class="bi bi-info-circle me-1"></i> Full <strong>Rs.{{ number_format($manualTotalReturnValue, 2) }}</strong> will be credited to Overpaid (Due untouched).
-                                        </div>
-                                    @endif
+                                    @php
+                                        $mDueSettle = ($manualAdjustDue && $manualCustomerDueAmount > 0) ? min($manualTotalReturnValue, $manualCustomerDueAmount) : 0;
+                                        $mRemaining = max(0, $manualTotalReturnValue - $mDueSettle);
+                                        $mOverpaid = $manualAddToOverpaid ? $mRemaining : 0;
+                                        $mCashRefund = !$manualAddToOverpaid ? $mRemaining : 0;
+                                    @endphp
+                                    <div class="mt-2 p-2 rounded small bg-light border" style="font-size: 0.8rem;">
+                                        @if($mDueSettle > 0)
+                                            <div class="d-flex justify-content-between text-primary mb-1">
+                                                <span><i class="bi bi-arrow-left-right me-1"></i> Deduct from Due:</span>
+                                                <strong>Rs.{{ number_format($mDueSettle, 2) }}</strong>
+                                            </div>
+                                        @endif
+                                        @if($mOverpaid > 0)
+                                            <div class="d-flex justify-content-between text-success mb-1">
+                                                <span><i class="bi bi-plus-circle me-1"></i> Credit to Overpaid Balance:</span>
+                                                <strong>Rs.{{ number_format($mOverpaid, 2) }}</strong>
+                                            </div>
+                                        @endif
+                                        @if($mCashRefund > 0)
+                                            <div class="d-flex justify-content-between text-danger mb-1">
+                                                <span><i class="bi bi-cash-stack me-1"></i> Cash Refund to Customer:</span>
+                                                <strong>Rs.{{ number_format($mCashRefund, 2) }}</strong>
+                                            </div>
+                                        @endif
+                                    </div>
                                 @endif
                             </div>
                         </div>
@@ -744,33 +849,31 @@
                         @if($selectedManualCustomer)
                         <div class="col-md-12">
                             @php
-                                $modalSettle = $manualAdjustDue ? min($manualTotalReturnValue, $manualCustomerDueAmount) : 0;
-                                $modalOverpaid = $manualAdjustDue ? max(0, $manualTotalReturnValue - $manualCustomerDueAmount) : $manualTotalReturnValue;
+                                $modalSettle = ($manualAdjustDue && $manualCustomerDueAmount > 0) ? min($manualTotalReturnValue, $manualCustomerDueAmount) : 0;
+                                $modalRemaining = max(0, $manualTotalReturnValue - $modalSettle);
+                                $modalOverpaid = $manualAddToOverpaid ? $modalRemaining : 0;
+                                $modalCashRefund = !$manualAddToOverpaid ? $modalRemaining : 0;
                             @endphp
-                            <div class="p-3 border rounded {{ $manualAdjustDue ? 'bg-primary bg-opacity-10 border-primary' : 'bg-light' }}">
-                                <div class="d-flex justify-content-between align-items-center mb-1">
-                                    <span class="small fw-bold text-dark">
-                                        <i class="bi bi-arrow-left-right me-1 text-primary"></i> Settle Customer Due:
-                                    </span>
-                                    <span class="badge {{ $manualAdjustDue ? 'bg-primary' : 'bg-secondary' }}">
-                                        {{ $manualAdjustDue ? 'ENABLED' : 'DISABLED' }}
-                                    </span>
-                                </div>
-                                <div class="small pt-1">
-                                    @if($manualAdjustDue && $modalSettle > 0)
-                                    <div class="d-flex justify-content-between text-danger fw-semibold">
-                                        <span>Deduct from Customer Due:</span>
-                                        <span>- Rs.{{ number_format($modalSettle, 2) }}</span>
+                            <div class="p-3 border rounded bg-light">
+                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calculator me-1"></i> Settlement Breakdown</h6>
+                                <div class="small">
+                                    @if($modalSettle > 0)
+                                    <div class="d-flex justify-content-between text-primary fw-semibold mb-1">
+                                        <span><i class="bi bi-arrow-left-right me-1"></i> Deduct from Customer Due:</span>
+                                        <span>Rs.{{ number_format($modalSettle, 2) }}</span>
                                     </div>
                                     @endif
                                     @if($modalOverpaid > 0)
-                                    <div class="d-flex justify-content-between text-success fw-semibold mt-1">
-                                        <span>Add to Overpaid Balance:</span>
-                                        <span>+ Rs.{{ number_format($modalOverpaid, 2) }}</span>
+                                    <div class="d-flex justify-content-between text-success fw-semibold mb-1">
+                                        <span><i class="bi bi-plus-circle me-1"></i> Credit to Overpaid Balance:</span>
+                                        <span>Rs.{{ number_format($modalOverpaid, 2) }}</span>
                                     </div>
                                     @endif
-                                    @if($manualAdjustDue && $modalSettle <= 0 && $modalOverpaid <= 0)
-                                    <div class="text-muted">No balance change.</div>
+                                    @if($modalCashRefund > 0)
+                                    <div class="d-flex justify-content-between text-danger fw-semibold mb-1">
+                                        <span><i class="bi bi-cash-stack me-1"></i> Cash Refund to Customer:</span>
+                                        <span>Rs.{{ number_format($modalCashRefund, 2) }}</span>
+                                    </div>
                                     @endif
                                 </div>
                             </div>
@@ -849,14 +952,50 @@
                 <div class="modal-body">
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <p><strong>Customer:</strong> {{ $selectedCustomer?->name }}</p>
-                            <p><strong>Invoice:</strong> #{{ $selectedInvoice?->invoice_number }}</p>
+                            <p class="mb-1"><strong>Customer:</strong> {{ $selectedCustomer?->name ?: 'Walk-in Customer' }}</p>
+                            <p class="mb-1"><strong>Invoice:</strong> #{{ $selectedInvoice?->invoice_number }}</p>
                         </div>
                         <div class="col-md-6">
-                            <p><strong>Return Value:</strong> <span class="text-success fw-bold">Rs.{{ number_format($totalReturnValue, 2) }}</span></p>
-                            <p><strong>Items:</strong> {{ count(array_filter($returnItems, fn($item) => $item['return_qty'] > 0)) }}</p>
+                            <p class="mb-1"><strong>Return Value:</strong> <span class="text-success fw-bold">Rs.{{ number_format($totalReturnValue, 2) }}</span></p>
+                            <p class="mb-1"><strong>Items:</strong> {{ count(array_filter($returnItems, fn($item) => $item['return_qty'] > 0)) }}</p>
                         </div>
                     </div>
+
+                    @if($selectedCustomer)
+                    <div class="row mb-3">
+                        <div class="col-12">
+                            @php
+                                $sysModalSettle = ($systemAdjustDue && $systemCustomerDueAmount > 0) ? min($totalReturnValue, $systemCustomerDueAmount) : 0;
+                                $sysModalRemaining = max(0, $totalReturnValue - $sysModalSettle);
+                                $sysModalOverpaid = $systemAddToOverpaid ? $sysModalRemaining : 0;
+                                $sysModalCashRefund = !$systemAddToOverpaid ? $sysModalRemaining : 0;
+                            @endphp
+                            <div class="p-3 border rounded bg-light">
+                                <h6 class="fw-bold text-dark mb-2"><i class="bi bi-calculator me-1"></i> Settlement Breakdown</h6>
+                                <div class="small">
+                                    @if($sysModalSettle > 0)
+                                    <div class="d-flex justify-content-between text-primary fw-semibold mb-1">
+                                        <span><i class="bi bi-arrow-left-right me-1"></i> Deduct from Customer Due:</span>
+                                        <span>Rs.{{ number_format($sysModalSettle, 2) }}</span>
+                                    </div>
+                                    @endif
+                                    @if($sysModalOverpaid > 0)
+                                    <div class="d-flex justify-content-between text-success fw-semibold mb-1">
+                                        <span><i class="bi bi-plus-circle me-1"></i> Credit to Overpaid Balance:</span>
+                                        <span>Rs.{{ number_format($sysModalOverpaid, 2) }}</span>
+                                    </div>
+                                    @endif
+                                    @if($sysModalCashRefund > 0)
+                                    <div class="d-flex justify-content-between text-danger fw-semibold mb-1">
+                                        <span><i class="bi bi-cash-stack me-1"></i> Cash Refund to Customer:</span>
+                                        <span>Rs.{{ number_format($sysModalCashRefund, 2) }}</span>
+                                    </div>
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    @endif
 
                     <h6 class="fw-bold mb-3">Return Items Summary</h6>
                     <div class="table-responsive">

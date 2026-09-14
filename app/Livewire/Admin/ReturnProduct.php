@@ -51,6 +51,11 @@ class ReturnProduct extends Component
 
     public $previousReturns = []; // Track previously returned items
 
+    public $systemAdjustDue = false; // Toggle to settle customer due
+    public $systemAddToOverpaid = false; // Toggle to credit remaining/full return to overpaid balance
+    public $systemCustomerDueAmount = 0;
+    public $systemCustomerOverpaidAmount = 0;
+
     // ==========================================
     // Manual / External Return Properties
     // ==========================================
@@ -67,7 +72,8 @@ class ReturnProduct extends Component
     public $manualReturnItems = [];
     public $manualTotalReturnValue = 0;
     public $manualNotes = '';
-    public $manualAdjustDue = false; // Toggle to settle customer due or add to overpaid
+    public $manualAdjustDue = false; // Toggle to settle customer due
+    public $manualAddToOverpaid = false; // Toggle to credit remaining/full return to overpaid balance
     public $manualCustomerDueAmount = 0;
     public $manualCustomerOverpaidAmount = 0;
 
@@ -116,6 +122,7 @@ class ReturnProduct extends Component
 
         $this->resetReturnData();
         $this->loadCustomerInvoices();
+        $this->loadSystemCustomerBalances();
     }
 
     /** 🧾 Load Selected Customer's Invoices */
@@ -143,6 +150,7 @@ class ReturnProduct extends Component
 
         if ($this->selectedInvoice && $this->selectedInvoice->customer) {
             $this->selectedCustomer = $this->selectedInvoice->customer;
+            $this->loadSystemCustomerBalances();
         }
 
         if ($this->selectedInvoice) {
@@ -391,6 +399,133 @@ class ReturnProduct extends Component
         );
     }
 
+    /** 📊 Calculate Customer Due Amount */
+    public function calculateCustomerDue($customer)
+    {
+        if (!$customer) return 0;
+        $openingBalance = (float)($customer->opening_balance ?? 0);
+        $pendingSales = Sale::where('customer_id', $customer->id)
+            ->whereIn('payment_status', ['pending', 'partial'])
+            ->get();
+
+        $salesDue = 0;
+        foreach ($pendingSales as $sale) {
+            $returnAmount = ReturnsProduct::where('sale_id', $sale->id)->sum('total_amount');
+            $adjustedDue = max(0, (float)$sale->due_amount - (float)$returnAmount);
+            $salesDue += $adjustedDue;
+        }
+
+        return $openingBalance + $salesDue;
+    }
+
+    /** 📊 Load Selected System Customer Balances (Due & Overpaid) */
+    public function loadSystemCustomerBalances()
+    {
+        if (!$this->selectedCustomer) {
+            $this->systemCustomerDueAmount = 0;
+            $this->systemCustomerOverpaidAmount = 0;
+            return;
+        }
+
+        $customer = Customer::find($this->selectedCustomer->id);
+        if (!$customer) {
+            $this->systemCustomerDueAmount = 0;
+            $this->systemCustomerOverpaidAmount = 0;
+            return;
+        }
+
+        $this->selectedCustomer = $customer;
+        $this->systemCustomerOverpaidAmount = (float)($customer->overpaid_amount ?? 0);
+        $this->systemCustomerDueAmount = $this->calculateCustomerDue($customer);
+    }
+
+    /** 💳 Helper to Deduct Customer Due Balance */
+    private function deductCustomerDue($customer, $deductAmount, $reference, $notes)
+    {
+        if (!$customer || $deductAmount <= 0) return 0;
+
+        $openingBalance = (float)($customer->opening_balance ?? 0);
+        $pendingSales = Sale::where('customer_id', $customer->id)
+            ->whereIn('payment_status', ['pending', 'partial'])
+            ->orderBy('created_at', 'asc')
+            ->get();
+
+        $salesList = [];
+        foreach ($pendingSales as $sale) {
+            $returnAmount = ReturnsProduct::where('sale_id', $sale->id)->sum('total_amount');
+            $adjustedDue = max(0, (float)$sale->due_amount - (float)$returnAmount);
+            if ($adjustedDue > 0.01) {
+                $salesList[] = [
+                    'sale' => $sale,
+                    'due_amount' => $adjustedDue,
+                ];
+            }
+        }
+
+        $remainingToDeduct = $deductAmount;
+        $totalDeducted = 0;
+
+        // 1. Deduct from opening balance first
+        if ($remainingToDeduct > 0 && $openingBalance > 0) {
+            $openingDeduction = min($remainingToDeduct, $openingBalance);
+            $customer->opening_balance = max(0, $openingBalance - $openingDeduction);
+            $remainingToDeduct -= $openingDeduction;
+            $totalDeducted += $openingDeduction;
+        }
+
+        // 2. Allocate remaining deduction to pending sales (FIFO)
+        if ($remainingToDeduct > 0 && !empty($salesList)) {
+            $salesDeductionAmount = 0;
+            foreach ($salesList as $sItem) {
+                if ($remainingToDeduct <= 0) break;
+                $dueForThis = $sItem['due_amount'];
+                $allocAmt = min($remainingToDeduct, $dueForThis);
+                $salesDeductionAmount += $allocAmt;
+                $remainingToDeduct -= $allocAmt;
+            }
+
+            if ($salesDeductionAmount > 0) {
+                $adjustmentPayment = Payment::create([
+                    'customer_id' => $customer->id,
+                    'amount' => $salesDeductionAmount,
+                    'payment_method' => 'return_adjustment',
+                    'payment_reference' => $reference,
+                    'payment_date' => now()->toDateString(),
+                    'status' => 'paid',
+                    'is_completed' => 1,
+                    'notes' => $notes,
+                    'created_by' => auth()->id() ?: 1,
+                ]);
+
+                $remainingForSales = $salesDeductionAmount;
+                foreach ($salesList as $sItem) {
+                    if ($remainingForSales <= 0) break;
+                    $saleModel = $sItem['sale'];
+                    $dueForThis = $sItem['due_amount'];
+                    $allocAmt = min($remainingForSales, $dueForThis);
+
+                    DB::table('payment_allocations')->insert([
+                        'payment_id' => $adjustmentPayment->id,
+                        'sale_id' => $saleModel->id,
+                        'allocated_amount' => $allocAmt,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+
+                    $saleModel->due_amount = max(0, (float)$saleModel->due_amount - $allocAmt);
+                    $saleModel->payment_status = $saleModel->due_amount <= 0.01 ? 'paid' : 'partial';
+                    $saleModel->save();
+
+                    $remainingForSales -= $allocAmt;
+                    $totalDeducted += $allocAmt;
+                }
+            }
+        }
+
+        $customer->save();
+        return $totalDeducted;
+    }
+
     /** ✅ Validate before showing confirmation */
     public function processReturn()
     {
@@ -428,6 +563,10 @@ class ReturnProduct extends Component
             return;
         }
 
+        if ($this->selectedCustomer) {
+            $this->loadSystemCustomerBalances();
+        }
+
         $this->dispatch('show-return-modal');
     }
 
@@ -436,7 +575,7 @@ class ReturnProduct extends Component
     {
         $this->calculateTotalReturnValue();
 
-        if (empty($this->returnItems) || !$this->selectedCustomer || !$this->selectedInvoice) return;
+        if (empty($this->returnItems) || !$this->selectedInvoice) return;
 
         $itemsToReturn = array_filter($this->returnItems, function ($item) {
             return isset($item['return_qty']) && $item['return_qty'] > 0;
@@ -447,15 +586,50 @@ class ReturnProduct extends Component
             return;
         }
 
-        DB::transaction(function () use ($itemsToReturn) {
-            $totalReturnAmount = 0;
+        $customer = $this->selectedCustomer ?? ($this->selectedInvoice ? $this->selectedInvoice->customer : null);
+        if ($customer) {
+            $this->loadSystemCustomerBalances();
+        }
+
+        $totalReturnAmount = $this->totalReturnValue;
+        $customerDue = $customer ? $this->systemCustomerDueAmount : 0;
+
+        $dueDeduction = 0;
+        if ($customer && $this->systemAdjustDue && $customerDue > 0) {
+            $dueDeduction = min($totalReturnAmount, $customerDue);
+        }
+
+        $remaining = max(0, $totalReturnAmount - $dueDeduction);
+
+        $overpaidCredit = 0;
+        $cashRefund = 0;
+
+        if ($customer && $this->systemAddToOverpaid) {
+            $overpaidCredit = $remaining;
+        } else {
+            $cashRefund = $remaining;
+        }
+
+        DB::transaction(function () use ($itemsToReturn, $totalReturnAmount, $dueDeduction, $overpaidCredit, $cashRefund, $customer) {
             foreach ($itemsToReturn as $item) {
                 $saleItem = \App\Models\SaleItem::where('sale_id', $this->selectedInvoice->id)
                     ->where('product_id', $item['product_id'])
                     ->first();
                 $costPrice = $saleItem ? $saleItem->cost_price : 0;
                 $itemTotal = $item['return_qty'] * $item['net_unit_price'];
-                $totalReturnAmount += $itemTotal;
+
+                $itemCashRefund = $totalReturnAmount > 0 ? round($itemTotal * ($cashRefund / $totalReturnAmount), 2) : 0;
+
+                $refundType = 'cash';
+                if ($cashRefund >= $totalReturnAmount) {
+                    $refundType = 'cash';
+                } elseif ($overpaidCredit >= $totalReturnAmount) {
+                    $refundType = 'overpaid';
+                } elseif ($dueDeduction >= $totalReturnAmount) {
+                    $refundType = 'due_deduction';
+                } else {
+                    $refundType = 'mixed';
+                }
 
                 ReturnsProduct::create([
                     'sale_id' => $this->selectedInvoice->id,
@@ -465,16 +639,27 @@ class ReturnProduct extends Component
                     'cost_price' => $costPrice,
                     'total_amount' => $itemTotal,
                     'return_condition' => $item['return_condition'] ?? 'usable',
+                    'refund_type' => $refundType,
+                    'refund_cash_amount' => $itemCashRefund,
                     'notes' => 'Customer return processed via system (' . ($item['return_condition'] ?? 'usable') . ')',
                 ]);
 
                 $this->updateProductStock($item['product_id'], $item['return_qty'], $item['return_condition'] ?? 'usable');
             }
 
-            $customer = $this->selectedCustomer ?? ($this->selectedInvoice ? $this->selectedInvoice->customer : null);
             if ($customer) {
-                $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalReturnAmount;
-                $customer->save();
+                if ($dueDeduction > 0) {
+                    $this->deductCustomerDue($customer, $dueDeduction, 'SRET-' . $this->selectedInvoice->invoice_number, 'System return adjustment against due (Inv #' . $this->selectedInvoice->invoice_number . ')');
+                }
+                if ($overpaidCredit > 0) {
+                    $customer->overpaid_amount = (float)$customer->overpaid_amount + $overpaidCredit;
+                    $customer->save();
+                }
+            }
+
+            $posSession = \App\Models\POSSession::getTodaySession(auth()->id());
+            if ($posSession) {
+                $posSession->updateFromSales();
             }
         });
 
@@ -530,6 +715,10 @@ class ReturnProduct extends Component
         $this->totalReturnValue = 0;
         $this->overallDiscountPerItem = 0;
         $this->previousReturns = [];
+        $this->systemAdjustDue = false;
+        $this->systemAddToOverpaid = false;
+        $this->systemCustomerDueAmount = 0;
+        $this->systemCustomerOverpaidAmount = 0;
     }
 
     // ==========================================
@@ -610,6 +799,7 @@ class ReturnProduct extends Component
         $this->manualCustomerDueAmount = 0;
         $this->manualCustomerOverpaidAmount = 0;
         $this->manualAdjustDue = false;
+        $this->manualAddToOverpaid = false;
     }
 
     /** 🔍 Search Product to add to Manual Return */
@@ -711,6 +901,7 @@ class ReturnProduct extends Component
         $this->clearManualCustomer();
         $this->manualNotes = '';
         $this->manualAdjustDue = false;
+        $this->manualAddToOverpaid = false;
     }
 
     /** ✅ Validate and prompt confirmation for Manual Return */
@@ -779,10 +970,33 @@ class ReturnProduct extends Component
         $invDate = $this->manualInvoiceDate ?: now()->toDateString();
         $generalNotes = $this->manualNotes;
         $adjustDue = $this->manualAdjustDue;
+        $addToOverpaid = $this->manualAddToOverpaid;
+
+        if ($this->selectedManualCustomer) {
+            $this->loadManualCustomerBalances();
+        }
+
+        $totalManualReturnAmount = $this->manualTotalReturnValue;
+        $customerDue = $this->manualCustomerDueAmount;
+
+        $dueDeduction = 0;
+        if ($custId && $adjustDue && $customerDue > 0) {
+            $dueDeduction = min($totalManualReturnAmount, $customerDue);
+        }
+
+        $remaining = max(0, $totalManualReturnAmount - $dueDeduction);
+
+        $overpaidCredit = 0;
+        $cashRefund = 0;
+
+        if ($custId && $addToOverpaid) {
+            $overpaidCredit = $remaining;
+        } else {
+            $cashRefund = $remaining;
+        }
 
         try {
-            DB::transaction(function () use ($custName, $custId, $invNumber, $invDate, $generalNotes, $adjustDue) {
-                $totalManualReturnAmount = 0;
+            DB::transaction(function () use ($custName, $custId, $invNumber, $invDate, $generalNotes, $dueDeduction, $overpaidCredit, $cashRefund, $totalManualReturnAmount) {
                 foreach ($this->manualReturnItems as $item) {
                     $qty = (float)$item['return_qty'];
                     $unitPrice = (float)$item['unit_price'];
@@ -790,7 +1004,19 @@ class ReturnProduct extends Component
                     $condition = $item['return_condition'] ?? 'usable';
                     $itemNotes = !empty($item['notes']) ? $item['notes'] : $generalNotes;
                     $itemTotal = $qty * $unitPrice;
-                    $totalManualReturnAmount += $itemTotal;
+
+                    $itemCashRefund = $totalManualReturnAmount > 0 ? round($itemTotal * ($cashRefund / $totalManualReturnAmount), 2) : 0;
+
+                    $refundType = 'cash';
+                    if ($cashRefund >= $totalManualReturnAmount) {
+                        $refundType = 'cash';
+                    } elseif ($overpaidCredit >= $totalManualReturnAmount) {
+                        $refundType = 'overpaid';
+                    } elseif ($dueDeduction >= $totalManualReturnAmount) {
+                        $refundType = 'due_deduction';
+                    } else {
+                        $refundType = 'mixed';
+                    }
 
                     ManualSaleReturn::create([
                         'invoice_number' => $invNumber,
@@ -803,6 +1029,8 @@ class ReturnProduct extends Component
                         'cost_price' => $costPrice,
                         'total_amount' => $itemTotal,
                         'return_condition' => $condition,
+                        'refund_type' => $refundType,
+                        'refund_cash_amount' => $itemCashRefund,
                         'notes' => $itemNotes ?: 'Manual/External sale return',
                         'created_by' => auth()->id(),
                     ]);
@@ -814,105 +1042,19 @@ class ReturnProduct extends Component
                 if ($custId) {
                     $customer = Customer::find($custId);
                     if ($customer) {
-                        if ($adjustDue) {
-                            // Calculate total customer due: opening balance + pending/partial sales
-                            $openingBalance = (float)($customer->opening_balance ?? 0);
-                            $pendingSales = Sale::where('customer_id', $customer->id)
-                                ->whereIn('payment_status', ['pending', 'partial'])
-                                ->orderBy('created_at', 'asc')
-                                ->get();
-
-                            $salesList = [];
-                            $salesDueTotal = 0;
-                            foreach ($pendingSales as $sale) {
-                                $returnAmount = ReturnsProduct::where('sale_id', $sale->id)->sum('total_amount');
-                                $adjustedDue = max(0, (float)$sale->due_amount - (float)$returnAmount);
-                                if ($adjustedDue > 0.01) {
-                                    $salesList[] = [
-                                        'sale' => $sale,
-                                        'due_amount' => $adjustedDue,
-                                    ];
-                                    $salesDueTotal += $adjustedDue;
-                                }
-                            }
-
-                            $totalCustomerDue = $openingBalance + $salesDueTotal;
-
-                            if ($totalCustomerDue > 0) {
-                                $remainingToDeduct = min($totalManualReturnAmount, $totalCustomerDue);
-                                $excessOverpaid = max(0, $totalManualReturnAmount - $totalCustomerDue);
-
-                                // 1. Deduct from opening balance first
-                                if ($remainingToDeduct > 0 && (float)$customer->opening_balance > 0) {
-                                    $openingDeduction = min($remainingToDeduct, (float)$customer->opening_balance);
-                                    $customer->opening_balance = max(0, (float)$customer->opening_balance - $openingDeduction);
-                                    $remainingToDeduct -= $openingDeduction;
-                                }
-
-                                // 2. Allocate remaining deduction to pending sales (FIFO)
-                                if ($remainingToDeduct > 0 && !empty($salesList)) {
-                                    $salesDeductionAmount = 0;
-                                    foreach ($salesList as $sItem) {
-                                        if ($remainingToDeduct <= 0) break;
-                                        $dueForThis = $sItem['due_amount'];
-                                        $allocAmt = min($remainingToDeduct, $dueForThis);
-                                        $salesDeductionAmount += $allocAmt;
-                                        $remainingToDeduct -= $allocAmt;
-                                    }
-
-                                    if ($salesDeductionAmount > 0) {
-                                        $adjustmentPayment = Payment::create([
-                                            'customer_id' => $customer->id,
-                                            'amount' => $salesDeductionAmount,
-                                            'payment_method' => 'return_adjustment',
-                                            'payment_reference' => 'MRET-' . $invNumber,
-                                            'payment_date' => $invDate,
-                                            'status' => 'paid',
-                                            'is_completed' => 1,
-                                            'notes' => 'Manual return adjustment against invoice due (Inv #' . $invNumber . ')',
-                                            'created_by' => auth()->id() ?: 1,
-                                        ]);
-
-                                        $remainingForSales = $salesDeductionAmount;
-                                        foreach ($salesList as $sItem) {
-                                            if ($remainingForSales <= 0) break;
-                                            $saleModel = $sItem['sale'];
-                                            $dueForThis = $sItem['due_amount'];
-                                            $allocAmt = min($remainingForSales, $dueForThis);
-
-                                            DB::table('payment_allocations')->insert([
-                                                'payment_id' => $adjustmentPayment->id,
-                                                'sale_id' => $saleModel->id,
-                                                'allocated_amount' => $allocAmt,
-                                                'created_at' => now(),
-                                                'updated_at' => now(),
-                                            ]);
-
-                                            $saleModel->due_amount = max(0, (float)$saleModel->due_amount - $allocAmt);
-                                            $saleModel->payment_status = $saleModel->due_amount <= 0.01 ? 'paid' : 'partial';
-                                            $saleModel->save();
-
-                                            $remainingForSales -= $allocAmt;
-                                        }
-                                    }
-                                }
-
-                                // 3. If return amount exceeds total due, add remainder to overpaid
-                                if ($excessOverpaid > 0) {
-                                    $customer->overpaid_amount = (float)$customer->overpaid_amount + $excessOverpaid;
-                                }
-                                $customer->save();
-                            } else {
-                                // Customer has no due amount -> full return amount adds to overpaid
-                                $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalManualReturnAmount;
-                                $customer->save();
-                            }
-                        } else {
-                            // Toggle is OFF -> full return amount adds directly to overpaid
-                            $customer->overpaid_amount = (float)$customer->overpaid_amount + $totalManualReturnAmount;
+                        if ($dueDeduction > 0) {
+                            $this->deductCustomerDue($customer, $dueDeduction, 'MRET-' . $invNumber, 'Manual return adjustment against invoice due (Inv #' . $invNumber . ')');
+                        }
+                        if ($overpaidCredit > 0) {
+                            $customer->overpaid_amount = (float)$customer->overpaid_amount + $overpaidCredit;
                             $customer->save();
                         }
                     }
+                }
+
+                $posSession = \App\Models\POSSession::getTodaySession(auth()->id());
+                if ($posSession) {
+                    $posSession->updateFromSales();
                 }
             });
 

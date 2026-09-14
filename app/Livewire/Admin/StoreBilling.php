@@ -140,74 +140,8 @@ class StoreBilling extends Component
             $this->editSaleId = $editSaleId;
         }
 
-        // Check for yesterday's open session - auto-close it
-        $yesterdaySession = POSSession::where('user_id', Auth::id())
-            ->whereDate('session_date', now()->subDay()->toDateString())
-            ->where('status', 'open')
-            ->first();
-
-        if ($yesterdaySession) {
-            // Auto-close yesterday's session
-            try {
-                DB::beginTransaction();
-
-                // Calculate yesterday's summary
-                $yesterday = now()->subDay()->toDateString();
-
-                // Get yesterday's POS sales
-                $yesterdaySales = Sale::whereDate('created_at', $yesterday)
-                    ->where('sale_type', 'pos')
-                    ->pluck('id');
-
-                $cashPayments = Payment::whereIn('sale_id', $yesterdaySales)
-                    ->where('payment_method', 'cash')
-                    ->sum('amount');
-
-                $totalSales = Sale::whereDate('created_at', $yesterday)
-                    ->where('sale_type', 'pos')
-                    ->sum('total_amount');
-
-                $expenses = DB::table('expenses')
-                    ->whereDate('date', $yesterday)
-                    ->sum('amount');
-
-                $refunds = DB::table('returns_products')
-                    ->whereDate('created_at', $yesterday)
-                    ->sum('total_amount');
-
-                $manualReturns = DB::table('manual_sale_returns')
-                    ->whereDate('created_at', $yesterday)
-                    ->sum('total_amount');
-
-                $deposits = DB::table('deposits')
-                    ->whereDate('date', $yesterday)
-                    ->sum('amount');
-
-                // Calculate expected closing cash
-                $expectedClosingCash = $yesterdaySession->opening_cash + $cashPayments - $expenses - $refunds - $deposits;
-
-                // Close the session
-                $yesterdaySession->update([
-                    'closing_cash' => $expectedClosingCash,
-                    'total_sales' => $totalSales,
-                    'cash_sales' => $cashPayments,
-                    'expenses' => $expenses,
-                    'refunds' => $refunds,
-                    'manual_returns' => $manualReturns,
-                    'cash_deposit_bank' => $deposits,
-                    'status' => 'closed',
-                    'closed_at' => now(),
-                    'notes' => 'Auto-closed at midnight',
-                ]);
-
-                DB::commit();
-
-                Log::info("Auto-closed yesterday's POS session for user: " . Auth::id());
-            } catch (\Exception $e) {
-                DB::rollBack();
-                Log::error("Failed to auto-close yesterday's session: " . $e->getMessage());
-            }
-        }
+        // Auto-close any open sessions from previous days
+        POSSession::autoClosePastSessions();
 
         // Check for open session
         $this->currentSession = POSSession::getTodaySession(Auth::id());
@@ -2060,15 +1994,15 @@ class StoreBilling extends Component
             ->sum('amount');
 
         // 9. Expenses, Refunds, and Cash Deposit Bank
-        // Get refunds today (returns)
+        // Get refunds today (cash refunds)
         $refundsToday = DB::table('returns_products')
             ->whereDate('created_at', $today)
-            ->sum('total_amount');
+            ->sum(DB::raw("CASE WHEN refund_cash_amount IS NOT NULL THEN refund_cash_amount WHEN refund_type IS NULL OR refund_type = 'cash' THEN total_amount ELSE 0 END"));
 
-        // Get manual returns today
+        // Get manual returns today (cash refunds)
         $manualReturnsToday = DB::table('manual_sale_returns')
             ->whereDate('created_at', $today)
-            ->sum('total_amount');
+            ->sum(DB::raw("CASE WHEN refund_cash_amount IS NOT NULL THEN refund_cash_amount WHEN refund_type IS NULL OR refund_type = 'cash' THEN total_amount ELSE 0 END"));
 
         // Get expenses today
         $expensesToday = DB::table('expenses')
@@ -2096,7 +2030,7 @@ class StoreBilling extends Component
             ->sum('amount');
 
         // Calculate Total Cash in Hand
-        $totalCashInHand = ($sessionOpeningCash + $totalCashPaymentsToday) - ($refundsToday + $expensesToday + $cashDepositBank + $supplierCashPaymentToday + $salaryPaymentToday);
+        $totalCashInHand = ($sessionOpeningCash + $totalCashPaymentsToday) - ($refundsToday + $manualReturnsToday + $expensesToday + $cashDepositBank + $supplierCashPaymentToday + $salaryPaymentToday);
 
         // Update session data
         $this->currentSession->update([

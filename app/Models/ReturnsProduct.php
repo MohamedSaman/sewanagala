@@ -16,6 +16,8 @@ class ReturnsProduct extends Model
         'cost_price',
         'total_amount',
         'return_condition',
+        'refund_type',
+        'refund_cash_amount',
         'notes',
     ];
 
