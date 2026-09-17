@@ -312,9 +312,9 @@
 
         @media print {
             @page {
-                size: 8.5in 5.5in;
-                /* Custom 8.5 x 5.5 inch standard receipt paper / A5 size */
-                margin: 10mm;
+                size: 210mm 140mm;
+                /* Custom 210mm x 140mm (8.5 x 5.5 inch) A5 receipt paper height */
+                margin: 3mm 4mm;
             }
 
             body * {
@@ -331,6 +331,7 @@
                 left: 0;
                 top: 0;
                 width: 100%;
+                max-height: 140mm;
             }
 
             .pos-overlay,

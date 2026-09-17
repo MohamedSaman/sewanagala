@@ -7,8 +7,8 @@
     <title>Invoice - {{ $sale->invoice_number }}</title>
     <style>
         @page {
-            size: A5 landscape;
-            margin: 2mm;
+            size: 210mm 140mm;
+            margin: 3mm 4mm;
         }
 
         html,

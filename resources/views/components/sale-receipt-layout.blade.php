@@ -312,6 +312,11 @@ if (file_exists($logoPath)) {
     }
 
     @media print {
+        @page {
+            size: 210mm 140mm;
+            margin: 3mm 4mm;
+        }
+
         #saleReceiptPrintContent .srp-canvas {
             background: #ffffff !important;
             padding: 0 !important;
@@ -322,6 +327,8 @@ if (file_exists($logoPath)) {
             box-shadow: none !important;
             padding: 0 !important;
             max-width: 100% !important;
+            max-height: 140mm !important;
+            overflow: hidden !important;
         }
     }
 </style>

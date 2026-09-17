@@ -60,8 +60,8 @@
         $totalItemsCount = $items->count();
         $hasReturns = $returnItems->count() > 0;
 
-        // A5 SMART PAGINATION
-        $singlePageCapacity = $hasReturns ? 6 : 8;
+        // A5 SMART PAGINATION (Height tuned for 140mm paper height)
+        $singlePageCapacity = $hasReturns ? 5 : 7;
 
         if ($totalItemsCount <= $singlePageCapacity) {
             $pagesData = [
@@ -74,13 +74,13 @@
                     'returns' => $returnItems,
                     'show_full_header' => true,
                     'show_totals_and_signatures' => true,
-                    'filler_count' => max(0, min(4, $singlePageCapacity - $totalItemsCount)),
+                    'filler_count' => max(0, min(3, $singlePageCapacity - $totalItemsCount)),
                 ]
             ];
         } else {
-            $page1Cap = 13;
-            $lastPageCap = $hasReturns ? 6 : 8;
-            $middleCap = 16;
+            $page1Cap = 11;
+            $lastPageCap = $hasReturns ? 5 : 7;
+            $middleCap = 14;
 
             $pagesData = [];
             $slicedPages = [];
@@ -139,9 +139,10 @@
             size: A4 portrait;
             margin: 0;
         }
+       
         @else
         @page {
-            size: A5 landscape;
+            size: 210mm 140mm;
             margin: 3mm 4mm;
         }
         @endif
@@ -333,15 +334,15 @@
             color: #334155;
         }
 
-        /* ── MODE 1: A5 Landscape Mode (Screen Preview: Exact 210mm × 148mm) ── */
+        /* ── MODE 1: A5 Landscape Mode (Screen Preview: Exact 210mm × 140mm) ── */
         .paper-mode-a5 .a5-a4-sheet {
             display: contents;
         }
 
         .paper-mode-a5 .a5-page {
             width: 210mm;
-            height: 148mm;
-            max-height: 148mm;
+            height: 140mm;
+            max-height: 140mm;
             background: #ffffff;
             border-radius: 4px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
@@ -364,7 +365,7 @@
             display: none !important;
         }
 
-        /* ── MODE 3: A5 on A4 Sheet Mode (Screen Preview: 210mm × 297mm A4 sheet containing up to two 210mm × 148mm A5 pages) ── */
+        /* ── MODE 3: A5 on A4 Sheet Mode (Screen Preview: 210mm × 297mm A4 sheet containing up to two 210mm × 140mm A5 pages) ── */
         .paper-mode-a5-on-a4 .a5-a4-sheet {
             width: 210mm;
             height: 297mm;
@@ -389,9 +390,9 @@
 
         .paper-mode-a5-on-a4 .a5-page {
             width: 210mm;
-            height: 148mm;
-            min-height: 148mm;
-            max-height: 148mm;
+            height: 140mm;
+            min-height: 140mm;
+            max-height: 140mm;
             background: #ffffff;
             padding: 3mm 4mm;
             position: relative;
@@ -408,6 +409,84 @@
             background: #F8FAFC;
             display: flex;
             align-items: center;
+            justify-content: center;
+            font-size: 7pt;
+            color: #64748B;
+            font-weight: 600;
+            user-select: none;
+            letter-spacing: 0.2px;
+            box-sizing: border-box;
+        }
+
+        /* ── MODE 4: 80mm Thermal Receipt Mode ── */
+        .paper-mode-80mm .thermal-render-container {
+            width: 80mm;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .paper-mode-80mm .thermal-page {
+            width: 80mm;
+            background: #ffffff;
+            padding: 5mm 4mm;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15);
+            font-family: 'Courier New', Courier, monospace, sans-serif;
+            font-size: 8.5pt;
+            box-sizing: border-box;
+            color: #000000;
+            border-radius: 4px;
+        }
+        .paper-mode-80mm .thermal-header {
+            text-align: center;
+            margin-bottom: 6px;
+            border-bottom: 1.5px dashed #000;
+            padding-bottom: 6px;
+        }
+        .paper-mode-80mm .thermal-header h2 {
+            font-size: 11pt;
+            font-weight: 800;
+            margin: 0 0 2px 0;
+            text-transform: uppercase;
+        }
+        .paper-mode-80mm .thermal-header p {
+            font-size: 7.5pt;
+            margin: 1px 0;
+        }
+        .paper-mode-80mm .thermal-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 6px 0;
+            font-size: 8pt;
+        }
+        .paper-mode-80mm .thermal-table th {
+            border-bottom: 1px solid #000;
+            text-align: left;
+            padding: 3px 0;
+            font-size: 7.5pt;
+        }
+        .paper-mode-80mm .thermal-table td {
+            padding: 2.5px 0;
+            vertical-align: top;
+        }
+        .paper-mode-80mm .thermal-totals {
+            border-top: 1.5px dashed #000;
+            padding-top: 4px;
+            margin-top: 6px;
+            font-size: 8.5pt;
+        }
+        .paper-mode-80mm .thermal-totals-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2px;
+        }
+        .paper-mode-80mm .thermal-footer {
+            text-align: center;
+            margin-top: 8px;
+            border-top: 1.5px dashed #000;
+            padding-top: 6px;
+            font-size: 7.5pt;
+        }
             justify-content: center;
             font-size: 7pt;
             color: #64748B;
@@ -859,8 +938,8 @@
                 border-radius: 0 !important;
                 box-shadow: none !important;
                 width: 100% !important;
-                height: calc(148mm - 6mm) !important;
-                max-height: calc(148mm - 6mm) !important;
+                height: calc(140mm - 6mm) !important;
+                max-height: calc(140mm - 6mm) !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 break-after: page !important;
@@ -902,8 +981,8 @@
 
             .paper-mode-a5-on-a4 .a5-page {
                 width: 210mm !important;
-                height: 148mm !important;
-                max-height: 148mm !important;
+                height: 140mm !important;
+                max-height: 140mm !important;
                 padding: 3mm 4mm !important;
                 box-sizing: border-box !important;
                 margin: 0 !important;
@@ -932,6 +1011,14 @@
                 display: none !important;
             }
 
+            /* MODE 4: 80mm Thermal Receipt Print */
+            .paper-mode-80mm .thermal-page {
+                width: 100% !important;
+                box-shadow: none !important;
+                padding: 0 !important;
+                margin: 0 !important;
+            }
+
             /* MODE 2: A4 Portrait Print */
             .paper-mode-a4 .a4-full-page {
                 border-radius: 0 !important;
@@ -948,7 +1035,7 @@
         }
     </style>
 </head>
-<body class="{{ $paper === 'a4' ? 'paper-mode-a4' : ($paper === 'a5-on-a4' ? 'paper-mode-a5-on-a4' : 'paper-mode-a5') }}">
+<body class="{{ $paper === 'a4' ? 'paper-mode-a4' : ($paper === 'a5-on-a4' ? 'paper-mode-a5-on-a4' : ($paper === '80mm' ? 'paper-mode-80mm' : 'paper-mode-a5')) }}">
 
     <!-- ── FLOATING TOOLBAR ── -->
     <div class="print-toolbar">
@@ -957,10 +1044,12 @@
             <span class="badge-info" id="pages-badge">
                 @if($paper === 'a4')
                     📑 1 Complete Single Bill (A4 Portrait)
+                @elseif($paper === '80mm')
+                    🧾 80mm Thermal POS Receipt
                 @elseif($paper === 'a5-on-a4')
                     📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? 'Pages' : 'Page' }} ({{ $totalA4SheetsCount }} A4 {{ $totalA4SheetsCount > 1 ? 'Sheets' : 'Sheet' }})
                 @else
-                    📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? 'Pages' : 'Page' }} (Landscape)
+                    📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? 'Pages' : 'Page' }} (210×140mm)
                 @endif
             </span>
         </div>
@@ -968,13 +1057,16 @@
         <div class="toolbar-controls">
             <!-- Paper Format Switcher -->
             <button type="button" class="btn-toolbar btn-format {{ $paper === 'a5' ? 'active' : '' }}" id="btn-set-a5" onclick="setPaperFormat('a5')">
-                📄 A5 Landscape
+                📄 A5 (210×140mm)
             </button>
             <button type="button" class="btn-toolbar btn-format {{ $paper === 'a5-on-a4' ? 'active' : '' }}" id="btn-set-a5-on-a4" onclick="setPaperFormat('a5-on-a4')">
                 📄 A5 on A4
             </button>
             <button type="button" class="btn-toolbar btn-format {{ $paper === 'a4' ? 'active' : '' }}" id="btn-set-a4" onclick="setPaperFormat('a4')">
                 📑 A4 Portrait
+            </button>
+            <button type="button" class="btn-toolbar btn-format {{ $paper === '80mm' ? 'active' : '' }}" id="btn-set-80mm" onclick="setPaperFormat('80mm')">
+                🧾 80mm Thermal
             </button>
 
             <!-- Download PDF Options -->
@@ -1449,38 +1541,70 @@
             </div>
         </div>
 
+        <!-- MODE 4: 80mm Thermal POS Receipt Container -->
+        <div class="thermal-render-container" id="thermal-container" style="{{ $paper === '80mm' ? 'display:flex;' : 'display:none;' }}">
+            <div class="thermal-page">
+                <div class="thermal-header">
+                    <h2>{{ config('shop.name', 'THIHARIYA TILE CENTER') }}</h2>
+                    <p>{{ config('shop.tagline', 'WALL TILES, FLOOR TILES & SANITARYWARE') }}</p>
+                    <p>{{ config('shop.address', 'N 122/1H, Kandy Road, Thihariya') }}</p>
+                    <p>Tel: {{ config('shop.phone', '+0332 290 295') }} | WA: {{ config('shop.whatsapp', '+94 77 085 6464') }}</p>
+                </div>
+
+                <div style="font-size: 8pt; margin-bottom: 4px; border-bottom: 1px dashed #000; padding-bottom: 4px;">
+                    <div><strong>Invoice #:</strong> {{ $sale->invoice_number }}</div>
+                    <div><strong>Date:</strong> {{ $sale->created_at->format('d/m/Y H:i') }}</div>
+                    <div><strong>Customer:</strong> {{ $billName }}</div>
+                    <div><strong>Pay Mode:</strong> {{ $paymentLabel }}</div>
+                </div>
+
+                <table class="thermal-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 45%;">Item</th>
+                            <th style="width: 15%; text-align: center;">Qty</th>
+                            <th style="width: 20%; text-align: right;">Rate</th>
+                            <th style="width: 20%; text-align: right;">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach($items as $item)
+                        @php
+                            $lTotal = ($item->unit_price - $item->discount_per_unit) * $item->quantity;
+                        @endphp
+                        <tr>
+                            <td>{{ $item->product_name }}</td>
+                            <td style="text-align: center;">{{ $item->quantity }}</td>
+                            <td style="text-align: right;">{{ number_format($item->unit_price, 2) }}</td>
+                            <td style="text-align: right;">{{ number_format($lTotal, 2) }}</td>
+                        </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+
+                <div class="thermal-totals">
+                    <div class="thermal-totals-row"><span>Sub Total:</span><span>Rs. {{ number_format($sale->total_amount + $displayDiscount, 2) }}</span></div>
+                    @if($displayDiscount > 0)
+                    <div class="thermal-totals-row"><span>Discount:</span><span>- Rs. {{ number_format($displayDiscount, 2) }}</span></div>
+                    @endif
+                    @if($returnTotal > 0)
+                    <div class="thermal-totals-row"><span>Returns:</span><span>- Rs. {{ number_format($returnTotal, 2) }}</span></div>
+                    @endif
+                    <div class="thermal-totals-row" style="font-weight: bold; border-top: 1px solid #000; padding-top: 2px; margin-top: 2px;">
+                        <span>Net Total:</span><span>Rs. {{ number_format($netTotal, 2) }}</span>
+                    </div>
+                    <div class="thermal-totals-row"><span>Paid:</span><span>Rs. {{ number_format($displayPaid, 2) }}</span></div>
+                    <div class="thermal-totals-row" style="font-weight: bold;"><span>Balance:</span><span>Rs. {{ number_format($displayBalance, 2) }}</span></div>
+                </div>
+
+                <div class="thermal-footer">
+                    <div>Goods return accepted within 7 days only.</div>
+                    <div style="font-weight: bold; margin-top: 4px;">Thank you! Come again!</div>
+                </div>
+            </div>
+        </div>
+
     </div>
-
-    {{--
-    ========================================================================================
-    PRINTER DRIVER LIMITATION & WINDOWS CONFIGURATION NOTICE (DEVELOPER REFERENCE)
-    ========================================================================================
-    TECHNICAL LIMITATION:
-    Laravel, Livewire, CSS (@page), and browser JavaScript can define and request the
-    document paper size, but they CANNOT directly query or override physical printer hardware
-    drivers to select unsupported paper sizes. Fake JavaScript APIs like printer.paperSize do
-    not exist in standard web browsers.
-
-    If the operating system or printer driver lacks an "A5" definition:
-    1. The printer driver dialog will default or restrict paper size to A4 or Letter.
-    2. To enable true A5 printing on Windows without driver A5 presets:
-       - Open Windows "Print Management" or "Print Server Properties"
-         (Win + R -> "printui /s /t2").
-       - Check "Create a new form" -> Name: "A5 Custom" or "148x210".
-       - Set Paper Dimensions:
-           Width:  148.0 mm
-           Height: 210.0 mm
-       - Click "Save Form".
-       - In Printer Properties -> Device Settings -> Map printer tray to the new form.
-       - Note: For landscape printing, the browser and printer handle orientation.
-       Do not try to configure Windows printer settings from Laravel.
-    3. FALLBACK: If driver configuration cannot be changed, use the built-in "A5 on A4" mode.
-       This formats the invoice to exact A5 dimensions (210mm x 148mm) on an A4 sheet without
-       scaling, so it can be cut cleanly in half.
-    4. DIRECT/SILENT PRINTING: If programmatic driver control or bypass of the browser print
-       dialog is required, use a dedicated hardware print agent like QZ Tray.
-    ========================================================================================
-    --}}
 
     <!-- ── DYNAMIC SWITCHER & PRINT SCRIPT ── -->
     <script>
@@ -1493,8 +1617,10 @@
                 styleTag.innerHTML = '@page { size: A4 portrait; margin: 8mm; }';
             } else if (format === 'a5-on-a4') {
                 styleTag.innerHTML = '@page { size: A4 portrait; margin: 0; }';
+            } else if (format === '80mm') {
+                styleTag.innerHTML = '@page { size: 80mm auto; margin: 2mm; }';
             } else {
-                styleTag.innerHTML = '@page { size: A5 landscape; margin: 3mm 4mm; }';
+                styleTag.innerHTML = '@page { size: 210mm 140mm; margin: 3mm 4mm; }';
             }
         }
 
@@ -1502,9 +1628,11 @@
             currentFormat = format;
             const a5Container = document.getElementById('a5-container');
             const a4Container = document.getElementById('a4-container');
+            const thermalContainer = document.getElementById('thermal-container');
             const btnA5 = document.getElementById('btn-set-a5');
             const btnA5onA4 = document.getElementById('btn-set-a5-on-a4');
             const btnA4 = document.getElementById('btn-set-a4');
+            const btn80mm = document.getElementById('btn-set-80mm');
             const badge = document.getElementById('pages-badge');
             const noticeBanner = document.getElementById('a5-notice-banner');
             const noticeTitle = document.getElementById('notice-title');
@@ -1514,6 +1642,7 @@
             if (btnA5) btnA5.classList.remove('active');
             if (btnA5onA4) btnA5onA4.classList.remove('active');
             if (btnA4) btnA4.classList.remove('active');
+            if (btn80mm) btn80mm.classList.remove('active');
 
             applyPaperStyle(format);
 
@@ -1521,43 +1650,52 @@
                 document.body.className = 'paper-mode-a4';
                 if (a5Container) a5Container.style.display = 'none';
                 if (a4Container) a4Container.style.display = 'contents';
+                if (thermalContainer) thermalContainer.style.display = 'none';
                 if (btnA4) btnA4.classList.add('active');
                 if (badge) badge.innerText = '📑 1 Complete Single Bill (A4 Portrait)';
+                if (noticeBanner) noticeBanner.style.display = 'none';
+            } else if (format === '80mm') {
+                document.body.className = 'paper-mode-80mm';
+                if (a5Container) a5Container.style.display = 'none';
+                if (a4Container) a4Container.style.display = 'none';
+                if (thermalContainer) thermalContainer.style.display = 'flex';
+                if (btn80mm) btn80mm.classList.add('active');
+                if (badge) badge.innerText = '🧾 80mm Thermal POS Receipt';
                 if (noticeBanner) noticeBanner.style.display = 'none';
             } else if (format === 'a5-on-a4') {
                 document.body.className = 'paper-mode-a5-on-a4';
                 if (a5Container) a5Container.style.display = 'contents';
                 if (a4Container) a4Container.style.display = 'none';
+                if (thermalContainer) thermalContainer.style.display = 'none';
                 if (btnA5onA4) btnA5onA4.classList.add('active');
                 if (badge) badge.innerText = '📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? "Pages" : "Page" }} ({{ $totalA4SheetsCount }} A4 {{ $totalA4SheetsCount > 1 ? "Sheets" : "Sheet" }})';
                 if (noticeBanner) {
                     noticeBanner.className = 'a5-notice-banner notice-info';
                     if (noticeIcon) noticeIcon.innerText = 'ℹ️';
-                    noticeTitle.innerText = 'A5 on A4 Mode Active (2 A5 Pages per A4 Sheet)';
-                    noticeDesc.innerHTML = 'Each A4 sheet fits up to <strong>two A5 pages</strong> (Page 1 on top, Page 2 on bottom) at exact physical dimensions (<strong>210mm × 148mm</strong>) without stretching. After printing, cut along the 148mm dashed line.';
+                    if (noticeTitle) noticeTitle.innerText = 'A5 on A4 Mode Active (2 A5 Pages per A4 Sheet)';
+                    if (noticeDesc) noticeDesc.innerHTML = 'Each A4 sheet fits up to <strong>two A5 pages</strong> (Page 1 on top, Page 2 on bottom) at exact physical dimensions (<strong>210mm × 140mm</strong>) without stretching. After printing, cut along the 140mm line.';
                     noticeBanner.style.display = 'flex';
                 }
             } else {
-                // Default: A5 Landscape
+                // Default: A5 Landscape (210x140mm)
                 document.body.className = 'paper-mode-a5';
                 if (a5Container) a5Container.style.display = 'contents';
                 if (a4Container) a4Container.style.display = 'none';
+                if (thermalContainer) thermalContainer.style.display = 'none';
                 if (btnA5) btnA5.classList.add('active');
-                if (badge) badge.innerText = '📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? "Pages" : "Page" }} (Landscape)';
+                if (badge) badge.innerText = '📄 {{ $totalPagesCount }} A5 {{ $totalPagesCount > 1 ? "Pages" : "Page" }} (210×140mm)';
                 if (noticeBanner) {
                     noticeBanner.className = 'a5-notice-banner';
-                    if (noticeIcon) noticeIcon.innerText = '⚠️';
-                    if (noticeTitle) noticeTitle.innerText = 'Printer Driver Paper Size Notice (A5)';
-                    if (noticeDesc) noticeDesc.innerHTML = 'A5 printing requires the printer driver to support <strong>A5</strong> or a custom <strong>148mm × 210mm</strong> paper size.<br>If A5 is not shown in the printer dialog, add an A5/custom paper form in Windows Printer Server Properties or the printer driver settings. Alternatively, use <strong>"A5 on A4"</strong> above to print without scaling on standard A4 paper.';
+                    if (noticeIcon) noticeIcon.innerText = 'ℹ️';
+                    if (noticeTitle) noticeTitle.innerText = 'A5 Receipt Paper Size (210mm × 140mm)';
+                    if (noticeDesc) noticeDesc.innerHTML = 'Receipt is formatted for A5 paper height (<strong>210mm × 140mm</strong>). Ensure printer margins are set to minimum (3-4mm) or use <strong>"A5 on A4"</strong> above to print 2 receipts per standard A4 sheet.';
                     noticeBanner.style.display = 'flex';
                 }
             }
         }
 
         function triggerPrint() {
-            // Ensure selected format CSS is active
             applyPaperStyle(currentFormat);
-            // Allow layout/styles to settle before triggering print dialog
             requestAnimationFrame(() => {
                 requestAnimationFrame(() => {
                     window.print();

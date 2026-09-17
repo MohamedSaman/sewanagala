@@ -448,179 +448,8 @@ use App\Models\Sale;
                 </div>
 
                 @if($selectedSale)
-                <div class="modal-body">
-                    {{-- ==================== CUSTOMER + INVOICE INFO ==================== --}}
-                    <div class="row mb-3">
-                        <div class="col-6">
-                            <strong>Invoice to:</strong><br>
-                            <strong>{{ $selectedSale->customer->name ?? 'Walk-in Customer' }}</strong><br>
-                            {{ $selectedSale->customer->address ?? '' }}<br>
-                            Tel: {{ $selectedSale->customer->phone ?? '' }}
-                        </div>
-                        <div class="col-6 text-end">
-                            <table class="table table-sm table-borderless">
-                                <tr>
-                                    <td><strong>Invoice #</strong></td>
-                                    <td>{{ $selectedSale->invoice_number }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Date</strong></td>
-                                    <td>{{ $selectedSale->created_at->format('d/m/Y h:i A') }}</td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Sale Type</strong></td>
-                                    <td><span class="badge bg-primary">{{ strtoupper($selectedSale->sale_type) }}</span>
-                                    </td>
-                                </tr>
-                                <tr>
-                                    <td><strong>Created By</strong></td>
-                                    <td>{{ $selectedSale->user->name ?? 'System' }}</td>
-                                </tr>
-                            </table>
-                        </div>
-                    </div>
-
-                    {{-- ==================== ITEMS TABLE ==================== --}}
-                    <div class="table-responsive mb-3" style="min-height: 10px;">
-                        <table class="table table-bordered table-sm">
-                            <thead class="table-light">
-                                <tr>
-                                    <th>#</th>
-                                    <th>Product</th>
-                                    <th class="text-center">Code</th>
-                                    <th class="text-center">Quantity</th>
-                                    <th class="text-end">Unit Price</th>
-                                    <th class="text-end">Discount</th>
-                                    <th class="text-end">Total</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($selectedSale->items as $i => $item)
-                                <tr>
-                                    <td>{{ $i + 1 }}</td>
-                                    <td>{{ $item->product_name }}</td>
-                                    <td class="text-center">{{ $item->product_code }}</td>
-                                    <td class="text-center">{{ $item->quantity }}</td>
-                                    <td class="text-end">Rs.{{ number_format($item->unit_price, 2) }}</td>
-                                    <td class="text-end">
-                                        Rs.{{ number_format($item->discount_per_unit * $item->quantity, 2) }}</td>
-                                    <td class="text-end">Rs.{{ number_format($item->total, 2) }}</td>
-                                </tr>
-                                @endforeach
-                                @if($selectedSale->items->count() == 0)
-                                <tr>
-                                    <td colspan="7" class="text-center text-muted">No items found.</td>
-                                </tr>
-                                @endif
-                            </tbody>
-                        </table>
-                    </div>
-
-
-                    {{-- ==================== RETURNED ITEMS TABLE (IF ANY) ==================== --}}
-                    @if(isset($selectedSale->returns) && count($selectedSale->returns) > 0)
-                    <div class="mb-3">
-                        <h6 class="text-danger fw-bold mb-2"><i class="bi bi-arrow-counterclockwise me-1"></i> RETURNED ITEMS</h6>
-                        <div class="table-responsive">
-                            <table class="table table-bordered table-sm">
-                                <thead class="table-danger">
-                                    <tr>
-                                        <th style="width: 30px;">#</th>
-                                        <th>Product</th>
-                                        <th class="text-center">Code</th>
-                                        <th class="text-center">Return Qty</th>
-                                        <th class="text-end">Unit Price</th>
-                                        <th class="text-end">Total</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    @php $returnAmount = 0; @endphp
-                                    @foreach($selectedSale->returns as $rIndex => $return)
-                                    @php $returnAmount += $return->total_amount; @endphp
-                                    <tr>
-                                        <td>{{ $rIndex + 1 }}</td>
-                                        <td>{{ $return->product?->name ?? '-' }}</td>
-                                        <td class="text-center">{{ $return->product?->code ?? '-' }}</td>
-                                        <td class="text-center">{{ $return->return_quantity }}</td>
-                                        <td class="text-end">Rs. {{ number_format($return->selling_price, 2) }}</td>
-                                        <td class="text-end text-danger fw-bold">- Rs. {{ number_format($return->total_amount, 2) }}</td>
-                                    </tr>
-                                    @endforeach
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                    @endif
-
-                    {{-- ==================== TOTALS BOX (MATCHING PIC 3) ==================== --}}
-                    @php
-                        $dispDiscount = max(0, (float) ($selectedSale->discount_amount ?? 0));
-                        $returnItems = $selectedSale->returns ?? collect();
-                        $returnTotal = (float) $returnItems->sum('total_amount');
-                        $subTotal = (float) ($selectedSale->total_amount + $dispDiscount);
-                        $netTotal = max(0, (float) $selectedSale->total_amount - $returnTotal);
-                        $displayPaid = min($selectedSale->payments->sum('amount'), $netTotal);
-                        if ($displayPaid == 0 && ($selectedSale->due_amount ?? 0) < $netTotal) {
-                            $displayPaid = max(0, $netTotal - (float) ($selectedSale->due_amount ?? 0));
-                        }
-                        $displayBalance = max(0, $netTotal - $displayPaid);
-                    @endphp
-
-                    <div class="row justify-content-end mb-3">
-                        <div class="col-md-5 col-sm-7">
-                            <div style="border: 1.5px solid #16285A; border-radius: 6px; padding: 6px 12px; background: #ffffff;">
-                                <table class="table table-sm table-borderless mb-0" style="font-size: 13px;">
-                                    <tbody>
-                                        <tr>
-                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Sub Total</td>
-                                            <td class="text-end fw-bold" style="padding: 3px 0; color: #111827;">Rs. {{ number_format($subTotal, 2) }}</td>
-                                        </tr>
-                                        @if($dispDiscount > 0)
-                                        <tr>
-                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Discount</td>
-                                            <td class="text-end fw-bold text-danger" style="padding: 3px 0;">- Rs. {{ number_format($dispDiscount, 2) }}</td>
-                                        </tr>
-                                        @endif
-                                        @if($returnTotal > 0)
-                                        <tr>
-                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Returns</td>
-                                            <td class="text-end fw-bold text-danger" style="padding: 3px 0;">- Rs. {{ number_format($returnTotal, 2) }}</td>
-                                        </tr>
-                                        @endif
-                                        <tr>
-                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Net Total</td>
-                                            <td class="text-end fw-bold" style="padding: 3px 0; color: #111827;">Rs. {{ number_format($netTotal, 2) }}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="color: #16285A; font-weight: 700; padding: 3px 0;">Paid</td>
-                                            <td class="text-end fw-bold" style="padding: 3px 0; color: #111827;">Rs. {{ number_format($displayPaid, 2) }}</td>
-                                        </tr>
-                                        <tr style="border-top: 1px dashed #CBD5E1;">
-                                            <td style="color: #16285A; font-weight: 700; padding: 4px 0;">Balance Due</td>
-                                            <td class="text-end fw-bold text-danger" style="padding: 4px 0; font-size: 14px;">Rs. {{ number_format($displayBalance, 2) }}</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-
-                    @if($selectedSale->notes)
-                    <h6 class="text-muted mb-2">NOTES</h6>
-                    <div class="card bg-light">
-                        <div class="card-body">
-                            <p class="mb-0">{{ $selectedSale->notes }}</p>
-                        </div>
-                    </div>
-                    @endif
-
-                    {{-- Footer Note --}}
-                    <div class="invoice-footer mt-4">
-                        <div class="border-top pt-3">
-                            <p class="text-center" style="font-size: 11px;"><strong>Goods return will be accepted within
-                                    14 days only.</strong></p>
-                        </div>
-                    </div>
+                <div class="modal-body p-0">
+                    @include('components.sale-receipt-layout', ['sale' => $selectedSale])
                 </div>
                 @endif
                 {{-- ==================== FOOTER BUTTONS ==================== --}}
@@ -1002,15 +831,14 @@ use App\Models\Sale;
 
     /* Print styles */
     @page {
-        size: A4;
-        margin: 0;
+        size: 210mm 140mm;
+        margin: 3mm 4mm;
     }
 
     @media print {
-
-        /* Remove browser header/footer */
         @page {
-            margin: 0mm;
+            size: 210mm 140mm;
+            margin: 3mm 4mm;
         }
 
         /* Hide everything except the invoice */
@@ -1025,19 +853,18 @@ use App\Models\Sale;
 
         /* Position the invoice */
         #printableInvoice {
-            position: fixed !important;
+            position: absolute !important;
             left: 0 !important;
             top: 0 !important;
             width: 210mm !important;
-            min-height: 297mm !important;
-            height: auto !important;
+            max-height: 140mm !important;
             margin: 0 !important;
-            padding: 10mm 10mm 20mm 15mm !important;
+            padding: 0 !important;
             background: #fff !important;
             font-size: 10pt !important;
             color: #000 !important;
             box-sizing: border-box !important;
-            overflow: visible !important;
+            overflow: hidden !important;
             page-break-after: avoid !important;
             page-break-before: avoid !important;
         }
