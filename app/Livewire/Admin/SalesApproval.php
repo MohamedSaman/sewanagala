@@ -132,12 +132,30 @@ class SalesApproval extends Component
         $this->editTotalDiscount = 0;
 
         foreach ($this->editItems as $itemId => $item) {
-            $quantity = $this->editQuantities[$itemId] ?? 0;
-            $price = $this->editPrices[$itemId] ?? 0;
+            $quantity = (float) ($this->editQuantities[$itemId] ?? 0);
+            $price = (float) ($this->editPrices[$itemId] ?? 0);
             $discount = $this->editDiscounts[$itemId] ?? 0;
 
+            $discountAmount = 0;
+            if ($discount !== null && $discount !== '') {
+                $discountStr = trim((string) $discount);
+                if (str_contains($discountStr, '%')) {
+                    $percentage = (float) str_replace('%', '', $discountStr);
+                    if ($percentage < 0) $percentage = 0;
+                    if ($percentage > 100) $percentage = 100;
+                    $discountAmount = ($price * $percentage) / 100;
+                } else {
+                    $discountAmount = (float) $discountStr;
+                }
+            }
+
+            if ($discountAmount < 0) $discountAmount = 0;
+            if ($discountAmount > $price) $discountAmount = $price;
+            $discountAmount = round($discountAmount, 2);
+            $this->editDiscounts[$itemId] = $discountAmount;
+
             $this->editSubtotal += ($price * $quantity);
-            $this->editTotalDiscount += ($discount * $quantity);
+            $this->editTotalDiscount += ($discountAmount * $quantity);
         }
 
         $this->editGrandTotal = $this->editSubtotal - $this->editTotalDiscount;

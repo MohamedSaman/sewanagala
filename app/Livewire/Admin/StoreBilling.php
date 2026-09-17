@@ -1078,18 +1078,28 @@ class StoreBilling extends Component
             return;
         }
 
-        if ($discount === '' || $discount === null || !is_numeric($discount)) {
-            $discount = 0;
+        $price = (float) ($this->cart[$index]['price'] ?? 0);
+        $discountAmount = 0;
+
+        if ($discount !== null && $discount !== '') {
+            $discountStr = trim((string) $discount);
+            if (str_contains($discountStr, '%')) {
+                $percentage = (float) str_replace('%', '', $discountStr);
+                if ($percentage < 0) $percentage = 0;
+                if ($percentage > 100) $percentage = 100;
+                $discountAmount = ($price * $percentage) / 100;
+            } else {
+                $discountAmount = (float) $discountStr;
+            }
         }
 
-        $discount = (float) $discount;
-        if ($discount < 0) $discount = 0;
-        if ($discount > $this->cart[$index]['price']) {
-            $discount = $this->cart[$index]['price'];
+        if ($discountAmount < 0) $discountAmount = 0;
+        if ($discountAmount > $price) {
+            $discountAmount = $price;
         }
 
-        $this->cart[$index]['discount'] = $discount;
-        $this->cart[$index]['total'] = ($this->cart[$index]['price'] - $discount) * $this->cart[$index]['quantity'];
+        $this->cart[$index]['discount'] = round($discountAmount, 2);
+        $this->cart[$index]['total'] = ($price - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
         $this->syncPaymentToTotal();
     }
 
@@ -1364,7 +1374,7 @@ class StoreBilling extends Component
                 foreach ($oldPayments as $oldPayment) {
                     // Logic for cash in hand reversal if needed
                     if ($oldPayment->payment_method === 'cash') {
-                        $this->updateCashInHands(-(int)$oldPayment->amount);
+                        $this->updateCashInHands(-(float)$oldPayment->amount);
                     }
                     // Delete associated cheques
                     Cheque::where('payment_id', $oldPayment->id)->delete();
@@ -1488,7 +1498,7 @@ class StoreBilling extends Component
                         $cashPayment = Payment::create([
                             'customer_id' => $customer->id,
                             'sale_id' => $sale->id,
-                            'amount' => (int)$this->cashAmount,
+                            'amount' => (float)$this->cashAmount,
                             'payment_method' => 'cash',
                             'payment_date' => $invoiceDateTime->copy(),
                             'is_completed' => true,
@@ -1498,13 +1508,13 @@ class StoreBilling extends Component
                             'updated_at' => $invoiceDateTime->copy(),
                         ]);
                         // Update cash in hands
-                        $this->updateCashInHands((int)$this->cashAmount);
+                        $this->updateCashInHands((float)$this->cashAmount);
                     }
 
                     // Cheque payment
                     $chequeTotal = $this->getChequeTotalAmount();
                     if ($chequeTotal > 0 || $isDraftCheque) {
-                        $saveAmount = $isDraftCheque ? (int)$chequeDraftAmount : (int)$chequeTotal;
+                        $saveAmount = $isDraftCheque ? (float)$chequeDraftAmount : (float)$chequeTotal;
                         $chequePayment = Payment::create([
                             'customer_id' => $customer->id,
                             'sale_id' => $sale->id,
@@ -1548,8 +1558,8 @@ class StoreBilling extends Component
                     }
                 } else {
                     // Single payment method
-                    if ((int)$this->totalPaidAmount > 0 || $isDraftCheque) {
-                        $saveAmount = $isDraftCheque ? (int)$chequeDraftAmount : (int)$this->totalPaidAmount;
+                    if ((float)$this->totalPaidAmount > 0 || $isDraftCheque) {
+                        $saveAmount = $isDraftCheque ? (float)$chequeDraftAmount : (float)$this->totalPaidAmount;
                         $payment = Payment::create([
                             'customer_id' => $customer->id,
                             'sale_id' => $sale->id,
@@ -1569,7 +1579,7 @@ class StoreBilling extends Component
                                 'updated_at' => $invoiceDateTime->copy(),
                             ]);
                             // Update cash in hands - add cash payment
-                            $this->updateCashInHands((int)$this->totalPaidAmount);
+                            $this->updateCashInHands((float)$this->totalPaidAmount);
                         } elseif ($this->paymentMethod === 'cheque') {
                             if ($isDraftCheque) {
                                 $payment->update([
@@ -2407,7 +2417,7 @@ class StoreBilling extends Component
             'dueAmount' => $this->dueAmount,
             'paymentStatus' => $this->paymentStatus,
             'databasePaymentType' => $this->databasePaymentType,
-            'totalPaidAmount' => (int)$this->totalPaidAmount,
+            'totalPaidAmount' => (float)$this->totalPaidAmount,
             'searchResults' => $this->searchResults,
         ])->layout('components.layouts.pos');
     }

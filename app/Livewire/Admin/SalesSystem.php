@@ -340,13 +340,32 @@ class SalesSystem extends Component
     // Update Discount
     public function updateDiscount($index, $discount)
     {
-        if ($discount < 0) $discount = 0;
-        if ($discount > $this->cart[$index]['price']) {
-            $discount = $this->cart[$index]['price'];
+        if (!isset($this->cart[$index])) {
+            return;
         }
 
-        $this->cart[$index]['discount'] = $discount;
-        $this->cart[$index]['total'] = ($this->cart[$index]['price'] - $discount) * $this->cart[$index]['quantity'];
+        $price = (float) ($this->cart[$index]['price'] ?? 0);
+        $discountAmount = 0;
+
+        if ($discount !== null && $discount !== '') {
+            $discountStr = trim((string) $discount);
+            if (str_contains($discountStr, '%')) {
+                $percentage = (float) str_replace('%', '', $discountStr);
+                if ($percentage < 0) $percentage = 0;
+                if ($percentage > 100) $percentage = 100;
+                $discountAmount = ($price * $percentage) / 100;
+            } else {
+                $discountAmount = (float) $discountStr;
+            }
+        }
+
+        if ($discountAmount < 0) $discountAmount = 0;
+        if ($discountAmount > $price) {
+            $discountAmount = $price;
+        }
+
+        $this->cart[$index]['discount'] = round($discountAmount, 2);
+        $this->cart[$index]['total'] = ($price - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
     }
 
     // Remove from Cart

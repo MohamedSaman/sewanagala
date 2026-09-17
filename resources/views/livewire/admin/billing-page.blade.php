@@ -152,9 +152,8 @@
                                             <td>
                                                 <div class="input-group input-group-sm" style="width: 100px;">
                                                     <span class="input-group-text">$</span>
-                                                    <input type="number" class="form-control form-control-sm"
-                                                        value="{{ $discounts[$id] ?? 0 }}" min="0"
-                                                        max="{{ $item['price'] }}" step="0.01"
+                                                    <input type="text" class="form-control form-control-sm"
+                                                        value="{{ $discounts[$id] ?? 0 }}"
                                                         wire:change="updateDiscount({{ $id }}, $event.target.value)">
                                                 </div>
                                             </td>

@@ -200,9 +200,9 @@
                                         </div>
                                     </td>
                                     <td>
-                                        <input type="number" class="form-control form-control-sm text-danger"
+                                        <input type="text" class="form-control form-control-sm text-danger"
                                             wire:change="updateDiscount({{ $index }}, $event.target.value)"
-                                            value="{{ $item['discount'] }}" min="0" step="0.01"
+                                            value="{{ $item['discount'] }}"
                                             placeholder="0">
                                     </td>
                                     <td class="fw-bold">

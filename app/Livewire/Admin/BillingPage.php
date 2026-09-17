@@ -207,7 +207,31 @@ class BillingPage extends Component
 
     public function updateDiscount($ProductId, $discount)
     {
-        $this->discounts[$ProductId] = max(0, min($discount, $this->cart[$ProductId]['price']));
+        if (!isset($this->cart[$ProductId])) {
+            return;
+        }
+
+        $price = (float) ($this->cart[$ProductId]['price'] ?? 0);
+        $discountAmount = 0;
+
+        if ($discount !== null && $discount !== '') {
+            $discountStr = trim((string) $discount);
+            if (str_contains($discountStr, '%')) {
+                $percentage = (float) str_replace('%', '', $discountStr);
+                if ($percentage < 0) $percentage = 0;
+                if ($percentage > 100) $percentage = 100;
+                $discountAmount = ($price * $percentage) / 100;
+            } else {
+                $discountAmount = (float) $discountStr;
+            }
+        }
+
+        if ($discountAmount < 0) $discountAmount = 0;
+        if ($discountAmount > $price) {
+            $discountAmount = $price;
+        }
+
+        $this->discounts[$ProductId] = round($discountAmount, 2);
         $this->updateTotals();
     }
 

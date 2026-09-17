@@ -706,7 +706,7 @@
                             <th class="pos-ct-th pos-ct-site">Site</th>
                             <th class="pos-ct-th pos-ct-qty">Qty</th>
                             <th class="pos-ct-th pos-ct-price">Price</th>
-                            <th class="pos-ct-th pos-ct-disc">Disc.</th>
+                            <th class="pos-ct-th pos-ct-disc">Disc(per item)</th>
                             <th class="pos-ct-th pos-ct-total">Sub Total</th>
                             <th class="pos-ct-th pos-ct-rm"></th>
                         </tr>
@@ -752,19 +752,12 @@
                             </td>
                             <td class="pos-ct-td pos-ct-disc">
                                 <div class="pos-disc-edit-wrap">
-                                    <input type="number"
+                                    <input type="text"
                                         class="pos-disc-input"
                                         value="{{ $item['discount'] }}"
                                         wire:change="updateDiscount({{ $index }}, $event.target.value)"
-                                        min="0"
-                                        max="{{ $item['price'] }}"
-                                        step="0.01"
-                                        placeholder="0">
-                                    @if($item['discount'] > 0)
-                                    <small class="pos-disc-val">
-                                        -Rs.{{ number_format($item['discount'] * $item['quantity'], 2) }}
-                                    </small>
-                                    @endif
+                                        placeholder="0 or 0%">
+                                    
                                 </div>
                             </td>
                             <td class="pos-ct-td pos-ct-total">
@@ -984,7 +977,7 @@
                         <label class="pos-label">Amount Received</label>
                         <div class="input-group">
                             <span class="input-group-text pos-input-prefix-sm">Rs.</span>
-                            <input type="number" class="form-control pos-input-lg py-3" wire:model.live="cashAmount" placeholder="0" autofocus>
+                            <input type="number" step="0.01" class="form-control pos-input-lg py-3" wire:model.live="cashAmount" placeholder="0" autofocus>
                         </div>
                     </div>
                     @elseif($paymentMethod === 'cheque')

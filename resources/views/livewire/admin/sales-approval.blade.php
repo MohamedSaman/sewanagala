@@ -636,11 +636,10 @@
                                                                    step="0.01" min="0">
                                                         </td>
                                                         <td class="text-center">
-                                                            <input type="number" class="form-control form-control-sm mx-auto text-center"
+                                                            <input type="text" class="form-control form-control-sm mx-auto text-center"
                                                                    style="width: 100px;"
-                                                                   wire:model.live="editDiscounts.{{ $itemId }}"
                                                                    wire:change="updateEditItem({{ $itemId }})"
-                                                                   step="0.01" min="0">
+                                                                   value="{{ $editDiscounts[$itemId] ?? 0 }}">
                                                         </td>
                                                         <td class="text-end">
                                                             <span class="fw-bold text-dark">

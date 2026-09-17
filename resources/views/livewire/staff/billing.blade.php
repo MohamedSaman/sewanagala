@@ -175,10 +175,8 @@
                                         <td>
                                             <div class="input-group input-group-sm" style="width: 120px;">
                                                 <span class="input-group-text">Rs.</span>
-                                                <input type="number" class="form-control form-control-sm"
-                                                    wire:model.live="discounts.{{ $id }}"
-                                                    min="0" max="{{ $item['price'] }}"
-                                                    step="0.01"
+                                                <input type="text" class="form-control form-control-sm"
+                                                    value="{{ $discounts[$id] ?? 0 }}"
                                                     wire:change="updateDiscount({{ $id }}, $event.target.value)">
                                             </div>
                                         </td>

@@ -73,7 +73,7 @@ class Income extends Component
             ['value' => 0]
         );
 
-        $this->cashInHand = (int) $cashRecord->value;
+        $this->cashInHand = (float) $cashRecord->value;
         $this->newCashInHand = $this->cashInHand;
 
         // Get today's POS session opening cash
