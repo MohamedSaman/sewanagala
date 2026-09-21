@@ -213,7 +213,7 @@
                     <option value="100">100</option>
                     <option value="200">200</option>
                     <option value="500">500</option>
-                    <option value="all">All</option>
+                    <option value="1000">1000</option>
                 </select>
                 <button wire:click="exportCSV" class="btn btn-sm btn-success d-flex align-items-center gap-1 shadow-sm ms-2">
                     <i class="bi bi-download"></i> Export CSV
