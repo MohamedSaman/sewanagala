@@ -140,7 +140,7 @@
 
         @if($isA4)
         @page {
-            size: 210mm 297mm;
+            size: 210mm 280mm;
             margin: 6mm 8mm 6mm 8mm;
         }
         @else

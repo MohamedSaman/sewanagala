@@ -176,7 +176,7 @@
                                             <div class="input-group input-group-sm" style="width: 120px;">
                                                 <span class="input-group-text">Rs.</span>
                                                 <input type="text" class="form-control form-control-sm"
-                                                    value="{{ $discounts[$id] ?? 0 }}"
+                                                    value="{{ $discount_inputs[$id] ?? $discounts[$id] ?? 0 }}"
                                                     wire:change="updateDiscount({{ $id }}, $event.target.value)">
                                             </div>
                                         </td>

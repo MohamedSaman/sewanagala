@@ -1069,7 +1069,7 @@ use App\Models\Sale;
         /* Ensure single page */
         html,
         body {
-            height: 297mm !important;
+            height: 280mm !important;
             width: 210mm !important;
             margin: 0 !important;
             padding: 0 !important;

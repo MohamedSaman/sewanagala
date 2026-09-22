@@ -202,7 +202,7 @@
                                     <td>
                                         <input type="text" class="form-control form-control-sm text-danger"
                                             wire:change="updateDiscount({{ $index }}, $event.target.value)"
-                                            value="{{ $item['discount'] }}"
+                                            value="{{ $item['discount_input'] ?? $item['discount'] }}"
                                             placeholder="0">
                                     </td>
                                     <td class="fw-bold">
@@ -471,7 +471,13 @@
                                         <td>{{ $item['product_name'] }}</td>
                                         <td class="text-center">{{ $item['quantity'] }}</td>
                                         <td class="text-end">{{ number_format($item['unit_price'], 2) }}</td>
-                                        <td class="text-end">{{ number_format($item['discount_per_unit'] ?? 0, 2) }}</td>
+                                        <td class="text-end">
+                                            @if(isset($item['discount_input']) && str_contains((string)$item['discount_input'], '%'))
+                                                {{ $item['discount_input'] }}
+                                            @else
+                                                {{ number_format($item['discount_per_unit'] ?? 0, 2) }}
+                                            @endif
+                                        </td>
                                         <td class="text-end">{{ number_format($item['total'], 2) }}</td>
                                     </tr>
                                     @endforeach
@@ -479,14 +485,17 @@
 
                                 {{-- Totals Section --}}
                                 <tfoot class="table-light">
+                                    @php
+                                        $grossSubtotal = collect($createdQuotation->items)->sum(function($item) {
+                                            return $item['quantity'] * $item['unit_price'];
+                                        });
+                                        $totalDiscount = $createdQuotation->discount_amount;
+                                    @endphp
+
                                     <tr>
                                         <td colspan="6" class="text-end fw-bold">Subtotal:</td>
-                                        <td class="text-end fw-bold">{{ number_format($createdQuotation->subtotal, 2) }}</td>
+                                        <td class="text-end fw-bold">{{ number_format($grossSubtotal, 2) }}</td>
                                     </tr>
-
-                                    @php
-                                        $totalDiscount = $createdQuotation->discount_amount + $createdQuotation->additional_discount;
-                                    @endphp
 
                                     @if($totalDiscount > 0)
                                     <tr>

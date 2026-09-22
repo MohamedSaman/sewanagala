@@ -299,7 +299,13 @@
                     <td>{{ $item['product_name'] }}</td>
                     <td class="text-center">{{ $item['quantity'] }}</td>
                     <td class="text-right amount">{{ number_format($item['unit_price'], 2) }}</td>
-                    <td class="text-right amount">{{ number_format($item['discount_per_unit'] ?? 0, 2) }}</td>
+                    <td class="text-right amount">
+                        @if(isset($item['discount_input']) && str_contains((string)$item['discount_input'], '%'))
+                            {{ $item['discount_input'] }}
+                        @else
+                            {{ number_format($item['discount_per_unit'] ?? 0, 2) }}
+                        @endif
+                    </td>
                     <td class="text-right amount">{{ number_format($item['total'], 2) }}</td>
                 </tr>
                 @endforeach
@@ -308,12 +314,15 @@
 
         <div class="totals-section">
             @php
+                $grossSubtotal = collect($quotation->items)->sum(function($item) {
+                    return $item['quantity'] * $item['unit_price'];
+                });
                 $totalDiscount = $quotation->discount_amount;
             @endphp
             <table class="totals-table">
                 <tr>
                     <td>Subtotal:</td>
-                    <td class="amount">LKR {{ number_format($quotation->subtotal, 2) }}</td>
+                    <td class="amount">LKR {{ number_format($grossSubtotal, 2) }}</td>
                 </tr>
                 @if($totalDiscount > 0)
                 <tr>

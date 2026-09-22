@@ -365,11 +365,11 @@
             display: none !important;
         }
 
-        /* ── MODE 3: A5 on A4 Sheet Mode (Screen Preview: 210mm × 297mm A4 sheet containing up to two 210mm × 140mm A5 pages) ── */
+        /* ── MODE 3: A5 on A4 Sheet Mode (Screen Preview: 210mm × 280mm A4 sheet containing up to two 210mm × 140mm A5 pages) ── */
         .paper-mode-a5-on-a4 .a5-a4-sheet {
             width: 210mm;
-            height: 297mm;
-            min-height: 297mm;
+            height: 280mm;
+            min-height: 280mm;
             background: #ffffff;
             border-radius: 4px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
@@ -514,10 +514,10 @@
             user-select: none;
         }
 
-        /* ── MODE 2: A4 Portrait Mode (Screen Preview: Exact 210mm × 297mm) ── */
+        /* ── MODE 2: A4 Portrait Mode (Screen Preview: Exact 210mm × 280mm) ── */
         .paper-mode-a4 .a4-full-page {
             width: 210mm;
-            min-height: 297mm;
+            min-height: 280mm;
             background: #ffffff;
             border-radius: 4px;
             box-shadow: 0 5px 20px rgba(0,0,0,0.15);
@@ -551,7 +551,7 @@
 
         .paper-mode-a4 .inv-border-wrap {
             height: auto;
-            min-height: calc(297mm - 16mm);
+            min-height: calc(280mm - 16mm);
             padding: 8px 12px;
         }
 
@@ -957,8 +957,8 @@
             /* MODE 3: A5 on A4 Sheet Print (A4 paper, up to two A5 invoices per A4 sheet) */
             .paper-mode-a5-on-a4 .a5-a4-sheet {
                 width: 210mm !important;
-                height: 297mm !important;
-                max-height: 297mm !important;
+                height: 280mm !important;
+                max-height: 280mm !important;
                 margin: 0 !important;
                 padding: 0 !important;
                 border: none !important;

@@ -62,6 +62,20 @@ class QuotationSystem extends Component
         $price = floatval($price);
         if ($price < 0) $price = 0;
         $this->cart[$index]['price'] = $price;
+        
+        // Recalculate discount if it was a percentage
+        if (isset($this->cart[$index]['discount_input']) && str_contains((string)$this->cart[$index]['discount_input'], '%')) {
+            $percentage = (float) str_replace('%', '', $this->cart[$index]['discount_input']);
+            $this->cart[$index]['discount'] = round(($price * $percentage) / 100, 2);
+        }
+
+        if ($this->cart[$index]['discount'] > $price) {
+            $this->cart[$index]['discount'] = $price;
+            if (!isset($this->cart[$index]['discount_input']) || !str_contains((string)$this->cart[$index]['discount_input'], '%')) {
+                $this->cart[$index]['discount_input'] = $price;
+            }
+        }
+
         // Recalculate total for this item
         $this->cart[$index]['total'] = ($price - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
     }
@@ -126,6 +140,7 @@ class QuotationSystem extends Component
                         'quantity' => $item['quantity'],
                         'price' => $item['unit_price'],
                         'discount' => $item['discount_per_unit'] ?? 0,
+                        'discount_input' => $item['discount_per_unit'] ?? 0,
                         'total' => $item['total'],
                         'stock' => $product->stock->available_stock ?? 0
                     ];
@@ -332,6 +347,7 @@ class QuotationSystem extends Component
                 'price' => $product['price'], // Unit price from selling_price
                 'quantity' => 1,
                 'discount' => $discountPrice, // Pre-fill with discount_price from database
+                'discount_input' => $discountPrice, // Pre-fill input with discount_price
                 'total' => $product['price'] - $discountPrice // Initial total with discount applied
             ]);
         }
@@ -365,7 +381,6 @@ class QuotationSystem extends Component
         }
     }
 
-    // Update Discount (only discount is editable now)
     public function updateDiscount($index, $discount)
     {
         if (!isset($this->cart[$index])) {
@@ -374,6 +389,7 @@ class QuotationSystem extends Component
 
         $price = (float) ($this->cart[$index]['price'] ?? 0);
         $discountAmount = 0;
+        $rawDiscount = $discount;
 
         if ($discount !== null && $discount !== '') {
             $discountStr = trim((string) $discount);
@@ -382,17 +398,23 @@ class QuotationSystem extends Component
                 if ($percentage < 0) $percentage = 0;
                 if ($percentage > 100) $percentage = 100;
                 $discountAmount = ($price * $percentage) / 100;
+                $rawDiscount = $percentage . '%';
             } else {
                 $discountAmount = (float) $discountStr;
+                $rawDiscount = $discountAmount;
             }
+        } else {
+            $rawDiscount = 0;
         }
 
         if ($discountAmount < 0) $discountAmount = 0;
         if ($discountAmount > $price) {
             $discountAmount = $price;
+            $rawDiscount = $price;
         }
 
         $this->cart[$index]['discount'] = round($discountAmount, 2);
+        $this->cart[$index]['discount_input'] = $rawDiscount;
         $this->cart[$index]['total'] = ($price - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
     }
 
@@ -519,6 +541,7 @@ class QuotationSystem extends Component
                     'quantity' => $item['quantity'],
                     'unit_price' => $item['price'],
                     'discount_per_unit' => $item['discount'],
+                    'discount_input' => $item['discount_input'] ?? $item['discount'],
                     'total_discount' => $item['discount'] * $item['quantity'],
                     'total' => $item['total']
                 ];

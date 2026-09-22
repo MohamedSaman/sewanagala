@@ -174,7 +174,7 @@
                                     <td>
                                         <input type="text" class="form-control form-control-sm text-danger"
                                             wire:change="updateDiscount({{ $index }}, $event.target.value)"
-                                            value="{{ $item['discount'] }}"
+                                            value="{{ $item['discount_input'] ?? $item['discount'] }}"
                                             placeholder="0">
                                     </td>
                                     <td class="fw-bold">

@@ -32,6 +32,7 @@ class Billing extends Component
     public $cart = [];
     public $quantities = [];
     public $discounts = [];
+    public $discount_inputs = [];
     public $ProductDetails = null;
     public $subtotal = 0;
     public $totalDiscount = 0;
@@ -175,6 +176,7 @@ class Billing extends Component
 
             $this->quantities[$ProductId] = 1;
             $this->discounts[$ProductId] = 0; // Initialize discount as 0
+            $this->discount_inputs[$ProductId] = 0;
         }
 
         // Clear search and update totals
@@ -256,6 +258,7 @@ class Billing extends Component
 
         $price = (float) ($this->cart[$ProductId]['price'] ?? 0);
         $discountAmount = 0;
+        $rawDiscount = $discount;
 
         if ($discount !== null && $discount !== '') {
             $discountStr = trim((string) $discount);
@@ -264,17 +267,23 @@ class Billing extends Component
                 if ($percentage < 0) $percentage = 0;
                 if ($percentage > 100) $percentage = 100;
                 $discountAmount = ($price * $percentage) / 100;
+                $rawDiscount = $percentage . '%';
             } else {
                 $discountAmount = (float) $discountStr;
+                $rawDiscount = $discountAmount;
             }
+        } else {
+            $rawDiscount = 0;
         }
 
         if ($discountAmount < 0) $discountAmount = 0;
         if ($discountAmount > $price) {
             $discountAmount = $price;
+            $rawDiscount = $price;
         }
 
         $this->discounts[$ProductId] = round($discountAmount, 2);
+        $this->discount_inputs[$ProductId] = $rawDiscount;
         $this->updateTotals();
     }
 
@@ -284,6 +293,7 @@ class Billing extends Component
         unset($this->cart[$ProductId]);
         unset($this->quantities[$ProductId]);
         unset($this->discounts[$ProductId]);
+        unset($this->discount_inputs[$ProductId]);
         $this->updateTotals();
     }
 
@@ -324,6 +334,7 @@ class Billing extends Component
         $this->cart = [];
         $this->quantities = [];
         $this->discounts = [];
+        $this->discount_inputs = [];
         $this->updateTotals();
     }
 

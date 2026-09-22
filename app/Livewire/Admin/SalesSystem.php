@@ -267,6 +267,7 @@ class SalesSystem extends Component
                 'price' => $product['price'],
                 'quantity' => 1,
                 'discount' => $discountPrice,
+                'discount_input' => $discountPrice,
                 'total' => $product['price'] - $discountPrice,
                 'stock' => $product['stock']
             ];
@@ -332,8 +333,22 @@ class SalesSystem extends Component
     public function updatePrice($index, $price)
     {
         if ($price < 0) $price = 0;
-
+        
         $this->cart[$index]['price'] = $price;
+
+        // Recalculate discount if it was a percentage
+        if (isset($this->cart[$index]['discount_input']) && str_contains((string)$this->cart[$index]['discount_input'], '%')) {
+            $percentage = (float) str_replace('%', '', $this->cart[$index]['discount_input']);
+            $this->cart[$index]['discount'] = round(($price * $percentage) / 100, 2);
+        }
+
+        if ($this->cart[$index]['discount'] > $price) {
+            $this->cart[$index]['discount'] = $price;
+            if (!isset($this->cart[$index]['discount_input']) || !str_contains((string)$this->cart[$index]['discount_input'], '%')) {
+                $this->cart[$index]['discount_input'] = $price;
+            }
+        }
+        
         $this->cart[$index]['total'] = ($price - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
     }
 
@@ -346,6 +361,7 @@ class SalesSystem extends Component
 
         $price = (float) ($this->cart[$index]['price'] ?? 0);
         $discountAmount = 0;
+        $rawDiscount = $discount;
 
         if ($discount !== null && $discount !== '') {
             $discountStr = trim((string) $discount);
@@ -354,17 +370,23 @@ class SalesSystem extends Component
                 if ($percentage < 0) $percentage = 0;
                 if ($percentage > 100) $percentage = 100;
                 $discountAmount = ($price * $percentage) / 100;
+                $rawDiscount = $percentage . '%';
             } else {
                 $discountAmount = (float) $discountStr;
+                $rawDiscount = $discountAmount;
             }
+        } else {
+            $rawDiscount = 0;
         }
 
         if ($discountAmount < 0) $discountAmount = 0;
         if ($discountAmount > $price) {
             $discountAmount = $price;
+            $rawDiscount = $price;
         }
 
         $this->cart[$index]['discount'] = round($discountAmount, 2);
+        $this->cart[$index]['discount_input'] = $rawDiscount;
         $this->cart[$index]['total'] = ($price - $this->cart[$index]['discount']) * $this->cart[$index]['quantity'];
     }
 
@@ -705,6 +727,7 @@ class SalesSystem extends Component
                 'price' => (float) $price,
                 'quantity' => $qty,
                 'discount' => $firstItem['discount'],
+                'discount_input' => $firstItem['discount_input'] ?? $firstItem['discount'],
                 'total' => (((float) $price) - $firstItem['discount']) * $qty,
                 'stock' => $firstItem['stock']
             ];
