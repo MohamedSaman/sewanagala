@@ -44,7 +44,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Ensure only one open session per user per day
-            $table->unique(['user_id', 'session_date', 'status']);
+           
         });
     }
 
