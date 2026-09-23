@@ -2137,7 +2137,7 @@ class StoreBilling extends Component
 
                 session()->flash('error', 'No active POS session found.');
 
-                return redirect()->route('admin.dashboard');
+                return $this->redirect(route(auth()->user()->is_admin ? 'admin.dashboard' : 'staff.dashboard'));
             }
 
             // Get the expected closing cash from sessionSummary

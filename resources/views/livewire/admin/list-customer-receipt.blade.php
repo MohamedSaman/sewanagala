@@ -199,6 +199,9 @@
                                         <button wire:click="downloadReceipt('{{ $ref }}')" class="btn btn-sm btn-outline-success ms-2" title="Download Receipt">
                                             <i class="bi bi-download"></i>
                                         </button>
+                                        <button wire:click="confirmDeletePayment('{{ $ref }}')" class="btn btn-sm btn-outline-danger ms-2" title="Delete Receipt">
+                                            <i class="bi bi-trash"></i>
+                                        </button>
                                     </div>
                                 </div>
                             </div>
@@ -315,6 +318,36 @@
                 <div class="modal-footer bg-light">
                     <button type="button" class="btn btn-secondary" wire:click="closePaymentModal">
                         <i class="bi bi-x-circle me-1"></i> Close
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endif
+
+    {{-- Delete Confirmation Modal --}}
+    @if($showDeleteModal)
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.6); z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content shadow-lg border-0">
+                <div class="modal-header bg-danger text-white">
+                    <h5 class="modal-title fw-bold">
+                        <i class="bi bi-exclamation-triangle-fill me-2"></i> Delete Payment
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" wire:click="closeDeleteModal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="fs-5">Are you sure you want to delete this payment?</p>
+                    <div class="alert alert-danger mb-0">
+                        <strong>Warning:</strong> This action cannot be undone. The allocated amount will be added back to the corresponding invoice's due balance. Any associated cheques will also be permanently deleted.
+                    </div>
+                </div>
+                <div class="modal-footer bg-light">
+                    <button type="button" class="btn btn-secondary" wire:click="closeDeleteModal" wire:loading.attr="disabled">
+                        Cancel
+                    </button>
+                    <button type="button" class="btn btn-danger ms-2" wire:click="deletePayment" wire:loading.attr="disabled">
+                        <i class="bi bi-trash me-1"></i> Confirm Delete
                     </button>
                 </div>
             </div>

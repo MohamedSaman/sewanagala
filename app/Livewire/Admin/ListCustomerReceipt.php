@@ -24,6 +24,9 @@ class ListCustomerReceipt extends Component
     public $payments = [];
     public $fromDateFilter = '';
     public $toDateFilter = '';
+    
+    public $showDeleteModal = false;
+    public $paymentReferenceToDelete = null;
 
     public function updatedPerPage()
     {
@@ -145,6 +148,112 @@ class ListCustomerReceipt extends Component
         return response()->streamDownload(function () use ($pdf) {
             echo $pdf->output();
         }, 'receipt_' . $reference . '.pdf');
+    }
+
+    public function confirmDeletePayment($reference)
+    {
+        $this->paymentReferenceToDelete = $reference;
+        $this->showDeleteModal = true;
+    }
+
+    public function closeDeleteModal()
+    {
+        $this->showDeleteModal = false;
+        $this->paymentReferenceToDelete = null;
+    }
+
+    public function deletePayment()
+    {
+        if (!$this->paymentReferenceToDelete) {
+            return;
+        }
+
+        try {
+            \Illuminate\Support\Facades\DB::transaction(function () {
+                if (\Illuminate\Support\Str::startsWith($this->paymentReferenceToDelete, 'single_')) {
+                    $paymentId = str_replace('single_', '', $this->paymentReferenceToDelete);
+                    $payments = Payment::with(['allocations.sale', 'cheques'])->where('id', $paymentId)->get();
+                } else {
+                    $payments = Payment::with(['allocations.sale', 'cheques'])->where('payment_reference', $this->paymentReferenceToDelete)->get();
+                }
+
+                if ($payments->isEmpty()) {
+                    throw new \Exception('Payment not found.');
+                }
+
+                foreach ($payments as $payment) {
+                    $allocatedSum = 0;
+                    // Reverse allocations
+                    foreach ($payment->allocations as $allocation) {
+                        $sale = $allocation->sale;
+                        if ($sale) {
+                            $sale->due_amount += $allocation->allocated_amount;
+                            
+                            if ($sale->due_amount >= $sale->total_amount) {
+                                $sale->payment_status = 'pending';
+                            } elseif ($sale->due_amount > 0) {
+                                $sale->payment_status = 'partial';
+                            } else {
+                                $sale->payment_status = 'paid';
+                            }
+                            
+                            $sale->save();
+                        }
+                        $allocatedSum += $allocation->allocated_amount;
+                        $allocation->delete();
+                    }
+
+                    // Restore Opening Balance
+                    $unallocated = $payment->amount - $allocatedSum;
+                    if ($unallocated > 0 && $payment->customer_id) {
+                        $customer = \App\Models\Customer::find($payment->customer_id);
+                        if ($customer) {
+                            $customer->opening_balance += $unallocated;
+                            $customer->save();
+                        }
+                    }
+
+                    // Restore Overpaid Amount if payment method was overpaid_amount
+                    if ($payment->payment_method === 'overpaid_amount' && $payment->customer_id) {
+                        $customer = \App\Models\Customer::find($payment->customer_id);
+                        if ($customer) {
+                            $customer->overpaid_amount += $payment->amount;
+                            $customer->save();
+                        }
+                    }
+
+                    // Deduct from Cash in Hand if it was cash
+                    if ($payment->payment_method === 'cash') {
+                        $cashRecord = \Illuminate\Support\Facades\DB::table('cash_in_hands')->where('key', 'cash_amount')->first();
+                        if ($cashRecord) {
+                            \Illuminate\Support\Facades\DB::table('cash_in_hands')->where('key', 'cash_amount')->update([
+                                'value' => (float)$cashRecord->value - (float)$payment->amount,
+                                'updated_at' => now()
+                            ]);
+                        }
+                    }
+
+                    // Delete cheques
+                    foreach ($payment->cheques as $cheque) {
+                        $cheque->delete();
+                    }
+
+                    // Delete the payment record
+                    $payment->delete();
+                }
+            });
+
+            $this->dispatch('show-success', 'Payment deleted and reversed successfully!');
+            $this->closeDeleteModal();
+
+            // Refresh the payments list for the modal
+            if ($this->selectedCustomer) {
+                $this->showCustomerPayments($this->selectedCustomer->id);
+            }
+
+        } catch (\Exception $e) {
+            $this->dispatch('show-error', 'Failed to delete payment: ' . $e->getMessage());
+        }
     }
 
     public function render()
