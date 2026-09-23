@@ -11,15 +11,14 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('pos_sessions', function (Blueprint $table) {
-            // Drop the unique constraint so users can close multiple registers per day
-            $sm = Schema::getConnection()->getDoctrineSchemaManager();
-            $indexesFound = $sm->listTableIndexes('pos_sessions');
-            
-            if (array_key_exists('pos_sessions_user_id_session_date_status_unique', $indexesFound)) {
+        try {
+            Schema::table('pos_sessions', function (Blueprint $table) {
                 $table->dropUnique('pos_sessions_user_id_session_date_status_unique');
-            }
-        });
+            });
+        } catch (\Exception $e) {
+            // Index might have already been dropped or doesn't exist
+            \Illuminate\Support\Facades\Log::info('Could not drop unique index from pos_sessions: ' . $e->getMessage());
+        }
     }
 
     /**
