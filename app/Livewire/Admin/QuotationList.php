@@ -135,7 +135,7 @@ class QuotationList extends Component
             $this->editableItems = collect($items)->map(function ($item) {
                 $product = ProductDetail::find($item['product_id']);
                 $currentStock = $product->stock->available_stock ?? 0;
-                $discountPrice = $product->price->discount_price ?? 0;
+                $discountPrice = $item['discount_per_unit'] ?? $product->price->discount_price ?? 0;
 
                 return [
                     'product_id' => $item['product_id'] ?? null,
