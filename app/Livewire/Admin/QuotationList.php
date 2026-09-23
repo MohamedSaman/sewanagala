@@ -516,7 +516,7 @@ class QuotationList extends Component
                     'notes' => $this->saleData['notes'],
                     'user_id' => Auth::id(),
                     'status' => 'confirm',
-                    'sale_type' => 'admin'
+                    'sale_type' => 'pos'
                 ]);
 
                 // Create sale items and update stock
