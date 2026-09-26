@@ -603,29 +603,46 @@ class QuotationList extends Component
         }
     }
 
-    // Download Quotation from View Modal
-    public function downloadQuotation()
+    public function printQuotation($quotationId = null)
     {
-        if (!$this->selectedQuotation) {
-            session()->flash('error', 'No quotation selected.');
+        $id = $quotationId ?: ($this->selectedQuotation->id ?? null);
+        if (!$id) {
+            $this->dispatch('show-error', 'Quotation not found.');
             return;
         }
 
-        $quotation = Quotation::find($this->selectedQuotation->id);
+        $quotation = Quotation::find($id);
+        if (!$quotation) {
+            $this->dispatch('show-error', 'Quotation not found.');
+            return;
+        }
+
+        $isStaff = auth()->check() && (auth()->user()->role === 'staff' || (method_exists(auth()->user(), 'isStaff') && auth()->user()->isStaff()));
+        $routeName = $isStaff ? 'staff.print.quotation' : 'admin.print.quotation';
+
+        $printUrl = route($routeName, $quotation->id);
+        $this->js("window.open('$printUrl', '_blank', 'width=900,height=700');");
+    }
+
+    // Download Quotation as PDF (matches sale invoice PDF format with 14 days validity)
+    public function downloadQuotation($quotationId = null)
+    {
+        $id = $quotationId ?: ($this->selectedQuotation->id ?? null);
+        if (!$id) {
+            $this->dispatch('show-error', 'No quotation selected.');
+            return;
+        }
+
+        $quotation = Quotation::find($id);
 
         if (!$quotation) {
-            session()->flash('error', 'Quotation not found.');
+            $this->dispatch('show-error', 'Quotation not found.');
             return;
         }
 
-        $pdf = PDF::loadView('admin.quotations.print', compact('quotation'));
-
-        return response()->streamDownload(
-            function () use ($pdf) {
-                echo $pdf->output();
-            },
-            'quotation-' . $quotation->quotation_number . '.pdf'
-        );
+        $isStaff = auth()->check() && (auth()->user()->role === 'staff' || (method_exists(auth()->user(), 'isStaff') && auth()->user()->isStaff()));
+        $downloadUrl = route($isStaff ? 'staff.download.quotation' : 'admin.download.quotation', ['id' => $quotation->id, 'paper' => 'a5']);
+        $this->js("window.location.href = '$downloadUrl';");
     }
 
     public function render()

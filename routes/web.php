@@ -187,6 +187,8 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
         Route::get('/store-billing', StoreBilling::class)->name('store-billing');
         Route::get('/print/sale/{id}', [PrintController::class, 'printSale'])->name('print.sale');
         Route::get('/download/sale/{id}', [PrintController::class, 'downloadSale'])->name('download.sale');
+        Route::get('/print/quotation/{id}', [\App\Http\Controllers\Admin\QuotationPrintController::class, 'printQuotation'])->name('print.quotation');
+        Route::get('/download/quotation/{id}', [\App\Http\Controllers\Admin\QuotationPrintController::class, 'downloadQuotation'])->name('download.quotation');
         Route::get('/due-payments', AdminDuePayments::class)->name('due-payments');
         Route::get('/staff-attendance', StaffAttendance::class)->name('staff-attendance');
         Route::get('/staff-salary', StaffSalary::class)->name('staff-salary');
@@ -276,6 +278,8 @@ Route::middleware(['auth:sanctum', config('jetstream.auth_session'), 'verified']
         Route::get('/quotation', Quotation::class)->name('quotation');
         Route::get('/quotation-system/{quotation?}', QuotationSystem::class)->name('quotation-system');
         Route::get('/quotation-list', QuotationList::class)->name('quotation-list');
+        Route::get('/print/quotation/{id}', [\App\Http\Controllers\Admin\QuotationPrintController::class, 'printQuotation'])->name('print.quotation');
+        Route::get('/download/quotation/{id}', [\App\Http\Controllers\Admin\QuotationPrintController::class, 'downloadQuotation'])->name('download.quotation');
 
         // Returns
         Route::get('/return-product', ReturnProduct::class)->name('return-product');

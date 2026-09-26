@@ -233,13 +233,20 @@
 <body>
     <div class="invoice-container">
         
-        <div class="screen-only-header p-4">
-            <div class="d-flex align-items-center justify-content-between mb-3">
+        <div class="screen-only-header pb-2">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
                 <div>
-                    <img src="{{ public_path('images/usn-quotation.png') }}" alt="header" class="img-fluid" style="width: 100%;">
+                    <h2 style="margin: 0; color: #16285A; font-weight: bold; text-transform: uppercase;">{{ config('shop.name', 'SEWANAGALA CERAMIC') }}</h2>
+                    <p style="margin: 2px 0; font-size: 11px; color: #CC0E11; font-style: italic;">{{ config('shop.tagline', 'Importers of Wall Tiles & Floor Tiles, Bathroom Sets, Bathroom Fittings, Glass Doors, Aluminium Doors, Borders & Sanitaryware') }}</p>
+                    <p style="margin: 1px 0; font-size: 11px; color: #555;">
+                        {{ config('shop.address', 'No 86, Delgahamuwa, Ibbagamuwa.') }} | Tel: {{ config('shop.phone', '0778186280 / 0778186280 / 0372259999') }}
+                    </p>
+                </div>
+                <div>
+                    <span style="background: #16285A; color: #fff; padding: 4px 12px; font-weight: bold; font-size: 12px; border-radius: 4px;">QUOTATION</span>
                 </div>
             </div>
-            <hr class="my-2" style="border-top: 2px solid #000;">
+            <hr style="margin-top: 10px; margin-bottom: 15px; border: 0; border-top: 2px solid #16285A;">
         </div>
 
         <div class="quotation-top">

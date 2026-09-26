@@ -82,7 +82,7 @@ class QuotationSystem extends Component
 
     public function mount($quotation = null)
     {
-        $this->validUntil = now()->addDays(30)->format('Y-m-d');
+        $this->validUntil = now()->addDays(14)->format('Y-m-d');
         $this->loadCustomers();
 
         // Check if quotation parameter is provided and is numeric
@@ -613,14 +613,10 @@ class QuotationSystem extends Component
             return;
         }
 
-        $pdf = PDF::loadView('admin.quotations.print', compact('quotation'));
+        $isStaff = auth()->check() && (auth()->user()->role === 'staff' || (method_exists(auth()->user(), 'isStaff') && auth()->user()->isStaff()));
+        $route = $isStaff ? 'staff.download.quotation' : 'admin.download.quotation';
 
-        return response()->streamDownload(
-            function () use ($pdf) {
-                echo $pdf->output();
-            },
-            'quotation-' . $quotation->quotation_number . '.pdf'
-        );
+        return redirect()->route($route, ['id' => $quotation->id]);
     }
 
     // Print Quotation
@@ -638,9 +634,10 @@ class QuotationSystem extends Component
             return;
         }
 
-        $pdf = PDF::loadView('admin.quotations.print', compact('quotation'));
+        $isStaff = auth()->check() && (auth()->user()->role === 'staff' || (method_exists(auth()->user(), 'isStaff') && auth()->user()->isStaff()));
+        $route = $isStaff ? 'staff.print.quotation' : 'admin.print.quotation';
 
-        return $pdf->download('quotation-' . $quotation->quotation_number . '.pdf');
+        $this->dispatch('open-print-tab', url: route($route, ['id' => $quotation->id]));
     }
 
     // Close Modal and reset only necessary fields
@@ -656,7 +653,7 @@ class QuotationSystem extends Component
     public function createNewQuotation()
     {
         $this->resetExcept(['customers', 'validUntil']);
-        $this->validUntil = now()->addDays(30)->format('Y-m-d');
+        $this->validUntil = now()->addDays(14)->format('Y-m-d');
         $this->setDefaultCustomer(); // Set walking customer again for new quotation
         $this->showQuotationModal = false;
     }

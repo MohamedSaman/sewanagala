@@ -143,6 +143,43 @@
                                             </button>
 
                                             <ul class="dropdown-menu dropdown-menu-end">
+                                                @if(auth()->user()->hasPermission('menu_quotation_print'))
+                                                <!-- Print Quotation -->
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                        wire:click="printQuotation({{ $quotation->id }})"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="printQuotation({{ $quotation->id }})">
+
+                                                        <span wire:loading wire:target="printQuotation({{ $quotation->id }})">
+                                                            <i class="spinner-border spinner-border-sm me-2"></i>
+                                                            Loading...
+                                                        </span>
+                                                        <span wire:loading.remove wire:target="printQuotation({{ $quotation->id }})">
+                                                            <i class="bi bi-printer text-primary me-2"></i>
+                                                            Print Quotation
+                                                        </span>
+                                                    </button>
+                                                </li>
+
+                                                <!-- Download Quotation -->
+                                                <li>
+                                                    <button class="dropdown-item"
+                                                        wire:click="downloadQuotation({{ $quotation->id }})"
+                                                        wire:loading.attr="disabled"
+                                                        wire:target="downloadQuotation({{ $quotation->id }})">
+
+                                                        <span wire:loading wire:target="downloadQuotation({{ $quotation->id }})">
+                                                            <i class="spinner-border spinner-border-sm me-2"></i>
+                                                            Loading...
+                                                        </span>
+                                                        <span wire:loading.remove wire:target="downloadQuotation({{ $quotation->id }})">
+                                                            <i class="bi bi-download text-success me-2"></i>
+                                                            Download Quotation
+                                                        </span>
+                                                    </button>
+                                                </li>
+                                                @endif
 
                                                 <!-- Edit Quotation (only if not converted) -->
                                                 @if($quotation->status !== 'converted' && auth()->user()->hasPermission('menu_quotation_edit'))
@@ -492,13 +529,36 @@
             <div class="modal-content" id="printableQuotation">
 
 
-                <div class="screen-only-header p-4">
-                    <div class="d-flex align-items-center justify-content-between mb-3">
-                        <div>
-                            <img src="{{ asset('images/usn-quotation.png') }}" alt="header" class="img-fluid" style="width: 100%;">
+                <div class="modal-header border-bottom-0 pb-0 pt-3 px-4 d-flex justify-content-between align-items-center">
+                    <h5 class="modal-title fw-bold text-dark mb-0">Quotation Details</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+
+                <div class="screen-only-header px-4 pt-2 pb-0">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center gap-3">
+                            <img src="{{ asset('images/logo.png') }}" alt="{{ config('shop.name', 'SEWANAGALA CERAMIC') }}" style="max-height: 60px; object-fit: contain;" onerror="this.style.display='none'">
+                            <div>
+                                <h4 class="mb-0 fw-bold" style="color: #16285A; letter-spacing: -0.3px; text-transform: uppercase;">{{ config('shop.name', 'SEWANAGALA CERAMIC') }}</h4>
+                                <div class="fw-semibold text-danger fst-italic" style="font-size: 11px;">
+                                    {{ config('shop.tagline', 'Importers of Wall Tiles & Floor Tiles, Bathroom Sets, Bathroom Fittings, Glass Doors, Aluminium Doors, Borders & Sanitaryware') }}
+                                </div>
+                                <div class="text-muted" style="font-size: 11.5px; line-height: 1.3;">
+                                    {{ config('shop.address', 'No 86, Delgahamuwa, Ibbagamuwa.') }}
+                                    <span class="mx-1">•</span>
+                                    <strong>Tel:</strong> {{ config('shop.phone', '0778186280 / 0778186280 / 0372259999') }}
+                                    @if(config('shop.whatsapp'))
+                                        <span class="mx-1">•</span>
+                                        <strong>WA:</strong> {{ config('shop.whatsapp', '0778186280') }}
+                                    @endif
+                                </div>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <span class="badge px-3 py-2 text-uppercase fw-bold" style="background: #16285A; font-size: 13px; letter-spacing: 0.5px;">QUOTATION</span>
                         </div>
                     </div>
-                    <hr class="my-2" style="border-top: 2px solid #000;">
+                    <hr class="mt-3 mb-2" style="border-top: 2px solid #16285A;">
                 </div>
 
                 @if($selectedQuotation)
@@ -526,9 +586,14 @@
                                     <td>{{ $selectedQuotation->quotation_date->format('d/m/Y') }}</td>
                                 </tr>
                                 @if($selectedQuotation->valid_until)
+                                @php
+                                    $qDate = \Carbon\Carbon::parse($selectedQuotation->quotation_date ?: ($selectedQuotation->created_at ?: now()))->startOfDay();
+                                    $vUntil = \Carbon\Carbon::parse($selectedQuotation->valid_until)->startOfDay();
+                                    $vDays = max(1, (int) round($qDate->diffInDays($vUntil, false)));
+                                @endphp
                                 <tr>
                                     <td><strong>Valid Until :</strong></td>
-                                    <td>{{ \Carbon\Carbon::parse($selectedQuotation->valid_until)->format('d/m/Y') }}</td>
+                                    <td>{{ $vUntil->format('d/m/Y') }} <span class="badge bg-warning text-dark">{{ $vDays }} Days</span></td>
                                 </tr>
                                 @endif
                                 <tr>
@@ -628,8 +693,8 @@
                     {{-- Footer – logos + address + note --}}
                     <div class="mt-4 text-center small">
                         <p class="mb-0">
-                            <strong>ADDRESS :</strong> {{ config('shop.address', 'N 122/1H, Kandy Road, Thihariya, Sri Lanka.') }}<br>
-                            <strong>TEL :</strong> {{ config('shop.phone', '+0332 290 295') }}, <strong>EMAIL :</strong> {{ config('shop.email', 'thihariyatilecenter@gmail.com') }}
+                            <strong>ADDRESS :</strong> {{ config('shop.address', 'No 86, Delgahamuwa, Ibbagamuwa.') }}<br>
+                            <strong>TEL :</strong> {{ config('shop.phone', '0778186280 / 0778186280 / 0372259999') }}
                         </p>
 
                     </div>
@@ -642,11 +707,18 @@
                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
                         <i class="bi bi-x-circle me-1"></i> Close
                     </button>
-                    <div>
-                        <button type="button" class="btn btn-success me-2" wire:click="downloadQuotation">
+                    @if($selectedQuotation)
+                    <div class="d-flex gap-2">
+                        @if(auth()->user()->hasPermission('menu_quotation_print'))
+                        <button type="button" class="btn btn-primary" wire:click="printQuotation({{ $selectedQuotation->id }})">
+                            <i class="bi bi-printer me-2"></i>Print Quotation
+                        </button>
+                        @endif
+                        <button type="button" class="btn btn-success" wire:click="downloadQuotation({{ $selectedQuotation->id }})">
                             <i class="bi bi-download me-2"></i>Download Quotation
                         </button>
                     </div>
+                    @endif
                 </div>
             </div>
         </div>

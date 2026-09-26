@@ -406,14 +406,27 @@
                 <div class="modal-body p-0">
                     {{-- Quotation Preview --}}
                     <div class="quotation-preview p-4">
-                        {{-- Header --}}
-                        <div class="screen-only-header ">
-                            <div class="d-flex align-items-center justify-content-between mb-3">
-                                <div>
-                                    <img src="{{ asset('images/usn-quotation.png') }}" alt="header" class="img-fluid" style="width: 100%;">
+                        <div class="screen-only-header pb-2">
+                            <div class="d-flex align-items-center justify-content-between">
+                                <div class="d-flex align-items-center gap-3">
+                                    <img src="{{ asset('images/logo.png') }}" alt="{{ config('shop.name', 'SEWANAGALA CERAMIC') }}" style="max-height: 55px; object-fit: contain;" onerror="this.style.display='none'">
+                                    <div>
+                                        <h4 class="mb-0 fw-bold" style="color: #16285A; letter-spacing: -0.3px; text-transform: uppercase;">{{ config('shop.name', 'SEWANAGALA CERAMIC') }}</h4>
+                                        <div class="fw-semibold text-danger fst-italic" style="font-size: 11px;">
+                                            {{ config('shop.tagline', 'Importers of Wall Tiles & Floor Tiles, Bathroom Sets, Bathroom Fittings, Glass Doors, Aluminium Doors, Borders & Sanitaryware') }}
+                                        </div>
+                                        <div class="text-muted" style="font-size: 11.5px; line-height: 1.3;">
+                                            {{ config('shop.address', 'No 86, Delgahamuwa, Ibbagamuwa.') }}
+                                            <span class="mx-1">•</span>
+                                            <strong>Tel:</strong> {{ config('shop.phone', '0778186280 / 0778186280 / 0372259999') }}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge px-3 py-2 text-uppercase fw-bold" style="background: #16285A; font-size: 13px; letter-spacing: 0.5px;">QUOTATION</span>
                                 </div>
                             </div>
-                            <hr class="my-2" style="border-top: 2px solid #000;">
+                            <hr class="mt-3 mb-3" style="border-top: 2px solid #16285A;">
                         </div>
 
                         {{-- Customer & Quotation Details --}}
@@ -534,6 +547,9 @@
                 <div class="modal-footer justify-content-center">
                     <button type="button" class="btn btn-outline-secondary me-2" wire:click="createNewQuotation">
                         <i class="bi bi-plus-circle me-2"></i>Create New Quotation
+                    </button>
+                    <button type="button" class="btn btn-primary me-2" wire:click="printQuotation">
+                        <i class="bi bi-printer me-2"></i>Print Quotation
                     </button>
                     <button type="button" class="btn btn-success me-2" wire:click="downloadQuotation">
                         <i class="bi bi-download me-2"></i>Download Quotation
@@ -704,6 +720,14 @@
         Livewire.on('additionalDiscountUpdated', (value) => {
             // Additional discount validation can be handled here if needed
         });
+    });
+
+    // Open print preview tab
+    window.addEventListener('open-print-tab', event => {
+        const url = event.detail.url || (event.detail && event.detail[0] ? event.detail[0].url : event.detail);
+        if (url) {
+            window.open(url, '_blank');
+        }
     });
 </script>
 @endpush
