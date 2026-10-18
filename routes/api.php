@@ -207,3 +207,34 @@ Route::middleware('auth:sanctum')->prefix('staff-app')->group(function () {
     Route::post('/collect-payment', [StaffAppController::class, 'collectPayment']);
 });
 
+// FastPOS Universal Synchronization API
+Route::prefix('v1/pos')->group(function () {
+    Route::get('/health', [\App\Http\Controllers\Api\PosSyncController::class, 'health']);
+    Route::get('/users', [\App\Http\Controllers\Api\PosSyncController::class, 'getUsers']);
+    Route::post('/settings/verify', [\App\Http\Controllers\Api\PosSyncController::class, 'verifySettings']);
+    Route::get('/products/sync', [\App\Http\Controllers\Api\PosSyncController::class, 'syncProducts']);
+    Route::post('/invoices/sync', [\App\Http\Controllers\Api\PosSyncController::class, 'syncInvoices']);
+    Route::get('/invoices/today', [\App\Http\Controllers\Api\PosSyncController::class, 'getTodaysInvoices']);
+    Route::get('/sales/today', [\App\Http\Controllers\Api\PosSyncController::class, 'getTodaysInvoices']);
+    Route::post('/sms/send', [\App\Http\Controllers\Api\PosSyncController::class, 'sendSms']);
+    Route::get('/products', [\App\Http\Controllers\Api\PosSyncController::class, 'syncProducts']);
+    Route::get('/invoices', [\App\Http\Controllers\Api\PosSyncController::class, 'getTodaysInvoices']);
+    Route::post('/invoices', [\App\Http\Controllers\Api\PosSyncController::class, 'syncInvoices']);
+    Route::post('/sms', [\App\Http\Controllers\Api\PosSyncController::class, 'sendSms']);
+});
+
+Route::prefix('pos')->group(function () {
+    Route::get('/health', [\App\Http\Controllers\Api\PosSyncController::class, 'health']);
+    Route::get('/users', [\App\Http\Controllers\Api\PosSyncController::class, 'getUsers']);
+    Route::post('/settings/verify', [\App\Http\Controllers\Api\PosSyncController::class, 'verifySettings']);
+    Route::get('/products/sync', [\App\Http\Controllers\Api\PosSyncController::class, 'syncProducts']);
+    Route::post('/invoices/sync', [\App\Http\Controllers\Api\PosSyncController::class, 'syncInvoices']);
+    Route::get('/invoices/today', [\App\Http\Controllers\Api\PosSyncController::class, 'getTodaysInvoices']);
+    Route::get('/sales/today', [\App\Http\Controllers\Api\PosSyncController::class, 'getTodaysInvoices']);
+    Route::post('/sms/send', [\App\Http\Controllers\Api\PosSyncController::class, 'sendSms']);
+    Route::get('/products', [\App\Http\Controllers\Api\PosSyncController::class, 'syncProducts']);
+    Route::get('/invoices', [\App\Http\Controllers\Api\PosSyncController::class, 'getTodaysInvoices']);
+    Route::post('/invoices', [\App\Http\Controllers\Api\PosSyncController::class, 'syncInvoices']);
+    Route::post('/sms', [\App\Http\Controllers\Api\PosSyncController::class, 'sendSms']);
+});
+
